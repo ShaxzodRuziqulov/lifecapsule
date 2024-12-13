@@ -1,0 +1,21 @@
+server:
+  port: 8085
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/lifecapsule
+    username: postgres
+    password: 123
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    database: postgresql
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+security:
+    jwt:
+      secret-key: 3FKEvKtG8LjD4CvCzWSmlBblzzoFsz_-l8DxmgWNXGNS_ihao6WVihREniCj0yy3KjRCmsAFoDnLAnfqQ5tvDw
+      expiration-time: 2628000000
+      refresh-expiration-time: 864000000
+
+
+
