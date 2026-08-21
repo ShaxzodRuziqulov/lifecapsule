@@ -7,14 +7,17 @@
 package com.example.lifecapsule.service.dto;
 
 import com.example.lifecapsule.entity.enumirated.Role;
+import com.example.lifecapsule.entity.enumirated.Status;
 
 
 
 public class UserDto {
     private Long id;
     private String username;
-    private String password;
+    private String email;
+    private String fullName;
     private Role role;
+    private Status status;
 
     public Long getId() {
         return id;
@@ -32,12 +35,20 @@ public class UserDto {
         this.username = username;
     }
 
-    public String getPassword() {
-        return password;
+    public String getEmail() {
+        return email;
     }
 
-    public void setPassword(String password) {
-        this.password = password;
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getFullName() {
+        return fullName;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
     }
 
     public Role getRole() {
@@ -46,5 +57,13 @@ public class UserDto {
 
     public void setRole(Role role) {
         this.role = role;
+    }
+
+    public Status getStatus() {
+        return status;
+    }
+
+    public void setStatus(Status status) {
+        this.status = status;
     }
 }

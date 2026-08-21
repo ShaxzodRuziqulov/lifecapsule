@@ -7,6 +7,7 @@
 package com.example.lifecapsule.service.security;
 
 import com.example.lifecapsule.service.JwtService;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,20 +20,16 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.io.IOException;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    private final HandlerExceptionResolver handlerExceptionResolver;
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
 
-    public JwtAuthenticationFilter(HandlerExceptionResolver handlerExceptionResolver,
-                                   JwtService jwtService,
+    public JwtAuthenticationFilter(JwtService jwtService,
                                    UserDetailsService userDetailsService) {
-        this.handlerExceptionResolver = handlerExceptionResolver;
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
     }
@@ -44,12 +41,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         final String authHeader = request.getHeader("Authorization");
 
-        if (authHeader == null || !authHeader.startsWith("Bearer")) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
         try {
             final String jwt = authHeader.substring(7);
+            if (jwt.isBlank()) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             final String userName = jwtService.extractUserName(jwt);
 
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -68,8 +69,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
             filterChain.doFilter(request,response);
-        }catch (Exception exception){
-            handlerExceptionResolver.resolveException(request,response,null,exception);
+        } catch (JwtException | IllegalArgumentException exception) {
+            SecurityContextHolder.clearContext();
+            filterChain.doFilter(request, response);
         }
     }
 }

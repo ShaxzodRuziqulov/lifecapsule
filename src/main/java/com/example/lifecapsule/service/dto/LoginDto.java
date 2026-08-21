@@ -11,6 +11,7 @@ import jakarta.validation.constraints.NotBlank;
 
 
 public class LoginDto {
+    @NotBlank(message = "Email bo'sh bo'lishi mumkin emas")
     @Email(message = "Email noto'g'ri formatda")
     private String email;
 

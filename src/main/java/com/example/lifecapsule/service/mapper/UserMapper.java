@@ -15,11 +15,22 @@ import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
 public interface UserMapper {
-    @Mapping(target = "", source = "")
+    @Mapping(target = "username", source = "userName")
     UserDto toDto(Users user);
 
+    @Mapping(target = "userName", source = "username")
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updateAt", ignore = true)
+    @Mapping(target = "password", ignore = true)
+    @Mapping(target = "authorities", ignore = true)
     Users toEntity(UserDto userDto);
 
-    @Mapping(source = "", target = "")
+    @Mapping(target = "userName", source = "username")
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updateAt", ignore = true)
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "role", ignore = true)
+    @Mapping(target = "status", ignore = true)
+    @Mapping(target = "authorities", ignore = true)
     Users toUser(RegisterUserDto registerUserDto);
 }

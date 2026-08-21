@@ -20,6 +20,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuthenticationService {
@@ -36,8 +37,24 @@ public class AuthenticationService {
     }
 
 
+    @Transactional
     public UserDto signup(RegisterUserDto input) {
+        String email = input.getEmail().trim().toLowerCase();
+        String username = input.getUsername().trim();
+
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            throw new IllegalArgumentException("Bu email allaqachon ro'yxatdan o'tgan");
+        }
+        if (userRepository.existsByUserNameIgnoreCase(username)) {
+            throw new IllegalArgumentException("Bu foydalanuvchi nomi band");
+        }
+
         Users user = userMapper.toUser(input);
+        user.setEmail(email);
+        user.setUserName(username);
+        if (user.getFullName() == null || user.getFullName().isBlank()) {
+            user.setFullName(username);
+        }
         user.setPassword(passwordEncoder.encode(input.getPassword()));
         user.setStatus(Status.ACTIVE);
         if (user.getRole() == null) {
@@ -63,7 +80,7 @@ public class AuthenticationService {
         } catch (BadCredentialsException e) {
             throw new BadCredentialsException("Email yoki paro noto'g'ri");
         }
-        return userRepository.findByEmail(input.getEmail())
+        return userRepository.findByEmailIgnoreCase(input.getEmail().trim().toLowerCase())
                 .orElseThrow(() -> new UsernameNotFoundException("Foydalanuvchi topilmadi " + input.getEmail()));
     }
 

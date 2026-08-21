@@ -12,6 +12,7 @@ import com.example.lifecapsule.entity.teamplate.BaseEntity;
 import jakarta.persistence.*;
 
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
@@ -19,22 +20,39 @@ import java.util.List;
 
 
 @Entity
+@Table(name = "users", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_users_email", columnNames = "email"),
+        @UniqueConstraint(name = "uk_users_username", columnNames = "user_name")
+})
 public class Users extends BaseEntity implements UserDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    @Column(nullable = false)
     private String fullName;
+
+    @Column(nullable = false, unique = true)
     private String email;
+
+    @Column(name = "user_name", nullable = false, unique = true)
     private String userName;
+
+    @Column(nullable = false)
     private String password;
+
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private Role role;
+
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private Status status;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of();
+        return role == null
+                ? List.of()
+                : List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
     }
 
     @Override
@@ -49,7 +67,7 @@ public class Users extends BaseEntity implements UserDetails {
 
     @Override
     public boolean isAccountNonExpired() {
-        return true;
+        return status == Status.ACTIVE;
     }
 
     @Override
