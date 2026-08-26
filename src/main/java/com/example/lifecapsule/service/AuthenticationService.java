@@ -9,6 +9,7 @@ package com.example.lifecapsule.service;
 import com.example.lifecapsule.entity.Users;
 import com.example.lifecapsule.entity.enumirated.Role;
 import com.example.lifecapsule.entity.enumirated.Status;
+import com.example.lifecapsule.errors.ConflictException;
 import com.example.lifecapsule.repository.UserRepository;
 import com.example.lifecapsule.service.dto.LoginDto;
 import com.example.lifecapsule.service.dto.RegisterUserDto;
@@ -43,18 +44,18 @@ public class AuthenticationService {
         String username = input.getUsername().trim();
 
         if (userRepository.existsByEmailIgnoreCase(email)) {
-            throw new IllegalArgumentException("Bu email allaqachon ro'yxatdan o'tgan");
+            throw new ConflictException("Bu email allaqachon ro'yxatdan o'tgan");
         }
         if (userRepository.existsByUserNameIgnoreCase(username)) {
-            throw new IllegalArgumentException("Bu foydalanuvchi nomi band");
+            throw new ConflictException("Bu foydalanuvchi nomi band");
         }
 
         Users user = userMapper.toUser(input);
         user.setEmail(email);
         user.setUserName(username);
-        if (user.getFullName() == null || user.getFullName().isBlank()) {
-            user.setFullName(username);
-        }
+        user.setFirstName(input.getFirstName().trim());
+        user.setLastName(input.getLastName().trim());
+        user.setMiddleName(input.getMiddleName() == null ? null : input.getMiddleName().trim());
         user.setPassword(passwordEncoder.encode(input.getPassword()));
         user.setStatus(Status.ACTIVE);
         if (user.getRole() == null) {
@@ -78,10 +79,15 @@ public class AuthenticationService {
                     )
             );
         } catch (BadCredentialsException e) {
-            throw new BadCredentialsException("Email yoki paro noto'g'ri");
+            throw new BadCredentialsException("Email yoki parol noto'g'ri");
         }
         return userRepository.findByEmailIgnoreCase(input.getEmail().trim().toLowerCase())
                 .orElseThrow(() -> new UsernameNotFoundException("Foydalanuvchi topilmadi " + input.getEmail()));
+    }
+
+    public Users findByEmail(String email) {
+        return userRepository.findByEmailIgnoreCase(email.trim().toLowerCase())
+                .orElseThrow(() -> new UsernameNotFoundException("Foydalanuvchi topilmadi " + email));
     }
 
 }

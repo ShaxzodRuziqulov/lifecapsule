@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
 
 
 @MappedSuperclass
-@EntityListeners(AutoCloseable.class)
 public class BaseEntity {
 
     @OrderBy

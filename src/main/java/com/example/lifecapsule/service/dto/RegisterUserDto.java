@@ -18,7 +18,16 @@ public class RegisterUserDto {
     @Email(message = "Email noto'g'ri formatda")
     private String email;
 
-    private String fullName;
+    @NotBlank(message = "Ism bo'sh bo'lishi mumkin emas")
+    @Size(max = 100, message = "Ism 100 belgidan oshmasligi kerak")
+    private String firstName;
+
+    @NotBlank(message = "Familiya bo'sh bo'lishi mumkin emas")
+    @Size(max = 100, message = "Familiya 100 belgidan oshmasligi kerak")
+    private String lastName;
+
+    @Size(max = 100, message = "Otasining ismi 100 belgidan oshmasligi kerak")
+    private String middleName;
 
     @NotBlank(message = "Parol bo'sh bo'lishi mumkin emas")
     @Size(min = 6, message = "Parol kamida 6 ta belgidan iborat bo'lishi kerak")
@@ -40,12 +49,28 @@ public class RegisterUserDto {
         this.email = email;
     }
 
-    public String getFullName() {
-        return fullName;
+    public String getFirstName() {
+        return firstName;
     }
 
-    public void setFullName(String fullName) {
-        this.fullName = fullName;
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
+    }
+
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
+    }
+
+    public String getMiddleName() {
+        return middleName;
+    }
+
+    public void setMiddleName(String middleName) {
+        this.middleName = middleName;
     }
 
     public String getPassword() {

@@ -1,0 +1,828 @@
+{
+  "info": {
+    "name": "LifeCapsule Backend API",
+    "description": "Local Postman collection for LifeCapsule Spring Boot backend. Import this collection with lifecapsule.local.postman_environment.json.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Signup",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"email\": \"{{email}}\",\n  \"firstName\": \"Shaxzod\",\n  \"lastName\": \"Roziqulov\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/signup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "signup"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) pm.environment.set('token', json.token);",
+                  "if (json.refreshToken) pm.environment.set('refreshToken', json.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.token) pm.environment.set('token', json.token);",
+                  "if (json.refreshToken) pm.environment.set('refreshToken', json.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Me",
+      "item": [
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Current User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"email\": \"{{email}}\",\n  \"firstName\": \"Shaxzod\",\n  \"lastName\": \"Roziqulov\",\n  \"middleName\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Current User",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Families",
+      "item": [
+        {
+          "name": "List My Families",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/families?page=0&size=100&sortBy=createdAt&direction=desc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "100"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt"
+                },
+                {
+                  "key": "direction",
+                  "value": "desc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Family",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('familyId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{familyName}}\",\n  \"description\": \"Postman orqali yaratilgan oila\",\n  \"visibility\": \"INVITE_ONLY\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/families",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Family",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Family",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{familyName}} updated\",\n  \"description\": \"Postman orqali yangilandi\",\n  \"visibility\": \"INVITE_ONLY\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Family",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Persons",
+      "item": [
+        {
+          "name": "List Persons",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/persons?page=0&size=100&sortBy=firstName&direction=asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "persons"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "100"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "firstName"
+                },
+                {
+                  "key": "direction",
+                  "value": "asc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Person",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('personId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ali\",\n  \"lastName\": \"Valiyev\",\n  \"maidenName\": \"\",\n  \"gender\": \"MALE\",\n  \"birthDate\": \"1995-01-10\",\n  \"deathDate\": null,\n  \"birthPlace\": \"Toshkent\",\n  \"occupation\": \"Developer\",\n  \"biography\": \"Postman orqali yaratilgan shaxs\",\n  \"photoUrl\": \"\",\n  \"linkedUserId\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/persons",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "persons"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Person",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/persons/{{personId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "persons",
+                "{{personId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Person",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Ali\",\n  \"lastName\": \"Valiyev updated\",\n  \"maidenName\": \"\",\n  \"gender\": \"MALE\",\n  \"birthDate\": \"1995-01-10\",\n  \"deathDate\": null,\n  \"birthPlace\": \"Toshkent\",\n  \"occupation\": \"Developer\",\n  \"biography\": \"Postman orqali yangilangan shaxs\",\n  \"photoUrl\": \"\",\n  \"linkedUserId\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/persons/{{personId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "persons",
+                "{{personId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Person",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/persons/{{personId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "persons",
+                "{{personId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Relationships",
+      "item": [
+        {
+          "name": "List Relationships",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/relationships?page=0&size=100&sortBy=createdAt&direction=asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "relationships"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "100"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt"
+                },
+                {
+                  "key": "direction",
+                  "value": "asc"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Relationship",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('relationshipId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromPersonId\": {{fromPersonId}},\n  \"toPersonId\": {{toPersonId}},\n  \"type\": \"PARENT\",\n  \"note\": \"Postman orqali yaratildi\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/relationships",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "relationships"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Relationship",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/relationships/{{relationshipId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "relationships",
+                "{{relationshipId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Relationship",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromPersonId\": {{fromPersonId}},\n  \"toPersonId\": {{toPersonId}},\n  \"type\": \"PARENT\",\n  \"note\": \"Postman orqali yangilandi\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/relationships/{{relationshipId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "relationships",
+                "{{relationshipId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Relationship",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/relationships/{{relationshipId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "relationships",
+                "{{relationshipId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Family Access",
+      "item": [
+        {
+          "name": "List Family Access",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/access",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "access"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Add Family Access",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('accessId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{viewerEmail}}\",\n  \"accessRole\": \"VIEWER\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/access",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "access"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Invite Family Access",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('accessId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{viewerEmail}}\",\n  \"accessRole\": \"VIEWER\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/access/invitations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "access",
+                "invitations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Family Access",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accessRole\": \"EDITOR\",\n  \"status\": \"ACTIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/access/{{accessId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "access",
+                "{{accessId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Family Access",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/access/{{accessId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "access",
+                "{{accessId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Family Invitations",
+      "item": [
+        {
+          "name": "List My Invitations",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/family-invitations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "family-invitations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Accept Invitation",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/family-invitations/{{accessId}}/accept",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "family-invitations",
+                "{{accessId}}",
+                "accept"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reject Invitation",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/family-invitations/{{accessId}}/reject",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "family-invitations",
+                "{{accessId}}",
+                "reject"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -10,10 +10,13 @@ import com.example.lifecapsule.entity.Users;
 import com.example.lifecapsule.service.AuthenticationService;
 import com.example.lifecapsule.service.JwtService;
 import com.example.lifecapsule.service.dto.LoginDto;
+import com.example.lifecapsule.service.dto.RefreshTokenDto;
 import com.example.lifecapsule.service.dto.RegisterUserDto;
 import com.example.lifecapsule.service.dto.UserDto;
 import com.example.lifecapsule.service.response.LoginResponse;
+import io.jsonwebtoken.JwtException;
 import jakarta.validation.Valid;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -42,8 +45,27 @@ public class AuthenticationResource {
         Users authenticatedUser = authenticationService.authenticate(input);
 
         String jwtToken = jwtService.generateToken(authenticatedUser);
-        LoginResponse loginResponse = new LoginResponse(jwtToken, "Bearer", jwtService.getExpirationTime());
+        String refreshToken = jwtService.generateRefreshToken(authenticatedUser);
+        LoginResponse loginResponse = new LoginResponse(jwtToken, refreshToken, "Bearer", jwtService.getExpirationTime());
         return ResponseEntity.ok(loginResponse);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<LoginResponse> refresh(@Valid @RequestBody RefreshTokenDto input) {
+        try {
+            String email = jwtService.extractUserName(input.getRefreshToken());
+            Users user = authenticationService.findByEmail(email);
+            if (!jwtService.isRefreshTokenValid(input.getRefreshToken(), user)) {
+                throw new BadCredentialsException("Refresh token yaroqsiz");
+            }
+
+            String jwtToken = jwtService.generateToken(user);
+            String refreshToken = jwtService.generateRefreshToken(user);
+            LoginResponse loginResponse = new LoginResponse(jwtToken, refreshToken, "Bearer", jwtService.getExpirationTime());
+            return ResponseEntity.ok(loginResponse);
+        } catch (JwtException | IllegalArgumentException exception) {
+            throw new BadCredentialsException("Refresh token yaroqsiz");
+        }
     }
 
 }

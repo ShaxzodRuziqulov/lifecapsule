@@ -4,7 +4,7 @@
  * DATE:08.12.2024
  * TIME:20:09
  */
-package com.example.lifecapsule.service.security;
+package com.example.lifecapsule.security;
 
 import com.example.lifecapsule.service.JwtService;
 import io.jsonwebtoken.JwtException;

@@ -12,6 +12,7 @@ import java.util.Objects;
 
 public class LoginResponse {
     private String token;
+    private String refreshToken;
     private String tokenType;
     private long expiresIn;
 
@@ -24,12 +25,27 @@ public class LoginResponse {
         this.expiresIn = expiresIn;
     }
 
+    public LoginResponse(String token, String refreshToken, String tokenType, long expiresIn) {
+        this.token = token;
+        this.refreshToken = refreshToken;
+        this.tokenType = tokenType;
+        this.expiresIn = expiresIn;
+    }
+
     public String getToken() {
         return token;
     }
 
     public void setToken(String token) {
         this.token = token;
+    }
+
+    public String getRefreshToken() {
+        return refreshToken;
+    }
+
+    public void setRefreshToken(String refreshToken) {
+        this.refreshToken = refreshToken;
     }
 
     public String getTokenType() {
@@ -53,18 +69,22 @@ public class LoginResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         LoginResponse that = (LoginResponse) o;
-        return expiresIn == that.expiresIn && Objects.equals(token, that.token) && Objects.equals(tokenType, that.tokenType);
+        return expiresIn == that.expiresIn
+                && Objects.equals(token, that.token)
+                && Objects.equals(refreshToken, that.refreshToken)
+                && Objects.equals(tokenType, that.tokenType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(token, tokenType, expiresIn);
+        return Objects.hash(token, refreshToken, tokenType, expiresIn);
     }
 
     @Override
     public String toString() {
         return "LoginResponse{" +
                 "token='" + token + '\'' +
+                ", refreshToken='" + refreshToken + '\'' +
                 ", tokenType='" + tokenType + '\'' +
                 ", expiresIn=" + expiresIn +
                 '}';
