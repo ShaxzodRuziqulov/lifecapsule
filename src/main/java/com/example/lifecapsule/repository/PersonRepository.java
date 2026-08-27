@@ -36,7 +36,23 @@ public interface PersonRepository extends JpaRepository<Person, Long> {
             Pageable pageable
     );
 
+    @Query("""
+            select person from Person person
+            where person.family.id = :familyId
+              and (
+                    lower(person.firstName) like lower(concat('%', :q, '%'))
+                    or lower(coalesce(person.lastName, '')) like lower(concat('%', :q, '%'))
+              )
+            """)
+    Page<Person> searchBasicByFamilyId(
+            @Param("familyId") Long familyId,
+            @Param("q") String q,
+            Pageable pageable
+    );
+
     Optional<Person> findByIdAndFamilyId(Long id, Long familyId);
+
+    Optional<Person> findByFamilyIdAndLinkedUserId(Long familyId, Long linkedUserId);
 
     @Modifying
     @Query("delete from Person person where person.family.id = :familyId")

@@ -2,9 +2,12 @@ package com.example.lifecapsule.service;
 
 import com.example.lifecapsule.entity.FamilyAccess;
 import com.example.lifecapsule.entity.Person;
+import com.example.lifecapsule.entity.Relationship;
 import com.example.lifecapsule.entity.Users;
 import com.example.lifecapsule.entity.enumirated.AccessStatus;
 import com.example.lifecapsule.entity.enumirated.FamilyAccessRole;
+import com.example.lifecapsule.entity.enumirated.Gender;
+import com.example.lifecapsule.entity.enumirated.RelationshipType;
 import com.example.lifecapsule.errors.ForbiddenException;
 import com.example.lifecapsule.errors.NotFoundException;
 import com.example.lifecapsule.repository.FamilyAccessRepository;
@@ -22,7 +25,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -105,7 +112,8 @@ public class PersonService {
             Long familyId,
             PageFilter filter
     ) {
-        getReadableAccess(currentUser, familyId);
+        FamilyAccess access = getReadableAccess(currentUser, familyId);
+        PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, access);
         String normalizedSort = PageableUtils.normalizeSort(filter.getSortBy(), DEFAULT_SORT);
         String normalizedDirection = PageableUtils.normalizeDirection(filter.getDirection());
         Pageable pageable = PageableUtils.create(
@@ -120,15 +128,16 @@ public class PersonService {
         String search = normalizeSearch(filter.getQ());
         var page = search == null
                 ? personRepository.findAllByFamilyId(familyId, pageable)
-                : personRepository.searchByFamilyId(familyId, search, pageable);
+                : searchByFamilyId(familyId, search, pageable, access);
 
-        return PageResponse.from(page.map(personMapper::toDto), normalizedSort, normalizedDirection);
+        return PageResponse.from(page.map(person -> toDto(person, privacyContext)), normalizedSort, normalizedDirection);
     }
 
     @Transactional(readOnly = true)
     public PersonDto getPerson(Users currentUser, Long familyId, Long personId) {
-        getReadableAccess(currentUser, familyId);
-        return personMapper.toDto(getPersonEntity(familyId, personId));
+        FamilyAccess access = getReadableAccess(currentUser, familyId);
+        PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, access);
+        return toDto(getPersonEntity(familyId, personId), privacyContext);
     }
 
     @Transactional
@@ -142,6 +151,112 @@ public class PersonService {
     private Person getPersonEntity(Long familyId, Long personId) {
         return personRepository.findByIdAndFamilyId(personId, familyId)
                 .orElseThrow(() -> new NotFoundException("Odam topilmadi"));
+    }
+
+    private PersonDto toDto(Person person, PersonPrivacyContext privacyContext) {
+        PersonDto dto = personMapper.toDto(person);
+        if (shouldMaskSensitiveProfile(person, privacyContext)) {
+            maskSensitiveProfile(dto);
+        }
+        return dto;
+    }
+
+    private org.springframework.data.domain.Page<Person> searchByFamilyId(
+            Long familyId,
+            String search,
+            Pageable pageable,
+            FamilyAccess access
+    ) {
+        if (access.getAccessRole() == FamilyAccessRole.VIEWER) {
+            return personRepository.searchBasicByFamilyId(familyId, search, pageable);
+        }
+        return personRepository.searchByFamilyId(familyId, search, pageable);
+    }
+
+    private PersonPrivacyContext createPrivacyContext(Users currentUser, FamilyAccess access) {
+        if (access.getAccessRole() != FamilyAccessRole.VIEWER) {
+            return new PersonPrivacyContext(access, Set.of());
+        }
+
+        Long familyId = access.getFamily().getId();
+        Set<Long> visibleSensitivePersonIds = personRepository
+                .findByFamilyIdAndLinkedUserId(familyId, currentUser.getId())
+                .map(linkedPerson -> findMahramPersonIds(familyId, linkedPerson.getId()))
+                .orElse(Set.of());
+
+        return new PersonPrivacyContext(access, visibleSensitivePersonIds);
+    }
+
+    private Set<Long> findMahramPersonIds(Long familyId, Long linkedPersonId) {
+        List<Relationship> relationships = relationshipRepository.findAllByFamilyIdOrderByCreatedAtAsc(familyId);
+        Map<Long, Set<Long>> parentsByChild = new HashMap<>();
+        Map<Long, Set<Long>> childrenByParent = new HashMap<>();
+        Set<Long> visiblePersonIds = new HashSet<>();
+        visiblePersonIds.add(linkedPersonId);
+
+        for (Relationship relationship : relationships) {
+            Long fromPersonId = relationship.getFromPerson().getId();
+            Long toPersonId = relationship.getToPerson().getId();
+
+            if (relationship.getType() == RelationshipType.PARTNER) {
+                if (fromPersonId.equals(linkedPersonId)) {
+                    visiblePersonIds.add(toPersonId);
+                }
+                if (toPersonId.equals(linkedPersonId)) {
+                    visiblePersonIds.add(fromPersonId);
+                }
+                continue;
+            }
+
+            if (relationship.getType() == RelationshipType.PARENT
+                    || relationship.getType() == RelationshipType.ADOPTIVE_PARENT) {
+                parentsByChild.computeIfAbsent(toPersonId, ignored -> new HashSet<>()).add(fromPersonId);
+                childrenByParent.computeIfAbsent(fromPersonId, ignored -> new HashSet<>()).add(toPersonId);
+            }
+        }
+
+        visiblePersonIds.addAll(collectConnected(linkedPersonId, parentsByChild));
+        visiblePersonIds.addAll(collectConnected(linkedPersonId, childrenByParent));
+
+        Set<Long> parentIds = parentsByChild.getOrDefault(linkedPersonId, Set.of());
+        for (Long parentId : parentIds) {
+            visiblePersonIds.addAll(childrenByParent.getOrDefault(parentId, Set.of()));
+        }
+
+        return visiblePersonIds;
+    }
+
+    private Set<Long> collectConnected(Long startPersonId, Map<Long, Set<Long>> graph) {
+        Set<Long> visited = new HashSet<>();
+        Set<Long> next = new HashSet<>(graph.getOrDefault(startPersonId, Set.of()));
+
+        while (!next.isEmpty()) {
+            Long personId = next.iterator().next();
+            next.remove(personId);
+            if (visited.add(personId)) {
+                next.addAll(graph.getOrDefault(personId, Set.of()));
+            }
+        }
+
+        return visited;
+    }
+
+    private boolean shouldMaskSensitiveProfile(Person person, PersonPrivacyContext privacyContext) {
+        if (privacyContext.access().getAccessRole() != FamilyAccessRole.VIEWER || person.getGender() != Gender.FEMALE) {
+            return false;
+        }
+        return !privacyContext.visibleSensitivePersonIds().contains(person.getId());
+    }
+
+    private void maskSensitiveProfile(PersonDto dto) {
+        dto.setMaidenName(null);
+        dto.setBirthDate(null);
+        dto.setDeathDate(null);
+        dto.setBirthPlace(null);
+        dto.setOccupation(null);
+        dto.setBiography("Ko'ruvchi rolida bu profilning batafsil ma'lumotlari yopiq.");
+        dto.setPhotoUrl(null);
+        dto.setLinkedUserId(null);
     }
 
     private FamilyAccess getReadableAccess(Users currentUser, Long familyId) {
@@ -175,6 +290,9 @@ public class PersonService {
             return null;
         }
         return q.trim();
+    }
+
+    private record PersonPrivacyContext(FamilyAccess access, Set<Long> visibleSensitivePersonIds) {
     }
 
 }
