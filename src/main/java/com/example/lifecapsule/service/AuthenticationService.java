@@ -66,28 +66,29 @@ public class AuthenticationService {
     }
 
     public Users authenticate(LoginDto input) {
-        if (input.getEmail() == null || input.getEmail().isEmpty()) {
-            throw new IllegalArgumentException("Email kiritilishi shart");
+        if (input.getUsername() == null || input.getUsername().isBlank()) {
+            throw new IllegalArgumentException("Foydalanuvchi nomi kiritilishi shart");
         }
         if (input.getPassword() == null || input.getPassword().isEmpty()) {
             throw new IllegalArgumentException(("Parol kiritilishi shart"));
         }
+        String username = input.getUsername().trim();
         try {
             authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
-                            input.getEmail(),
+                            username,
                             input.getPassword()
                     )
             );
         } catch (BadCredentialsException e) {
-            throw new BadCredentialsException("Email yoki parol noto'g'ri");
+            throw new BadCredentialsException("Foydalanuvchi nomi yoki parol noto'g'ri");
         }
-        return userRepository.findByEmailIgnoreCase(input.getEmail().trim().toLowerCase())
-                .orElseThrow(() -> new UsernameNotFoundException("Foydalanuvchi topilmadi " + input.getEmail()));
+        return userRepository.findByUserNameIgnoreCase(username)
+                .orElseThrow(() -> new UsernameNotFoundException("Foydalanuvchi topilmadi " + username));
     }
 
-    public Users findByEmail(String email) {
-        return userRepository.findByEmailIgnoreCase(email.trim().toLowerCase())
-                .orElseThrow(() -> new UsernameNotFoundException("Foydalanuvchi topilmadi " + email));
+    public Users findByUsername(String username) {
+        return userRepository.findByUserNameIgnoreCase(username.trim())
+                .orElseThrow(() -> new UsernameNotFoundException("Foydalanuvchi topilmadi " + username));
     }
 
 }

@@ -16,36 +16,49 @@ public class FamilyResource {
     private final FamilyService familyService;
 
     @PostMapping
-    public FamilyDto createFamily(
+    public ResponseEntity<FamilyDto> createFamily(
             @AuthenticationPrincipal Users currentUser,
             @Valid @RequestBody CreateFamilyDto input
     ) {
-        return familyService.createFamily(currentUser, input);
+        FamilyDto result = familyService.createFamily(currentUser, input);
+        return ResponseEntity.ok().body(result);
     }
 
     @GetMapping
-    public PageResponse<FamilyDto> getMyFamilies(
+    public ResponseEntity<PageResponse<FamilyDto>> getMyFamilies(
             @AuthenticationPrincipal Users currentUser,
-            PageFilter filter
+            @Valid @ModelAttribute PageFilter filter
     ) {
-        return familyService.getMyFamilies(currentUser, filter);
+        PageResponse<FamilyDto> result = familyService.getMyFamilies(currentUser, filter);
+        return ResponseEntity.ok().body(result);
+    }
+
+    @PostMapping("/search")
+    public ResponseEntity<PageResponse<FamilyDto>> searchMyFamilies(
+            @AuthenticationPrincipal Users currentUser,
+            @Valid @RequestBody PageFilter filter
+    ) {
+        PageResponse<FamilyDto> result = familyService.getMyFamilies(currentUser, filter);
+        return ResponseEntity.ok().body(result);
     }
 
     @GetMapping("/{familyId}")
-    public FamilyDto getFamily(
+    public ResponseEntity<FamilyDto> getFamily(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long familyId
     ) {
-        return familyService.getFamily(currentUser, familyId);
+        FamilyDto result = familyService.getFamily(currentUser, familyId);
+        return ResponseEntity.ok().body(result);
     }
 
     @PutMapping("/{familyId}")
-    public FamilyDto updateFamily(
+    public ResponseEntity<FamilyDto> updateFamily(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long familyId,
             @Valid @RequestBody UpdateFamilyDto input
     ) {
-        return familyService.updateFamily(currentUser, familyId, input);
+        FamilyDto result = familyService.updateFamily(currentUser, familyId, input);
+        return ResponseEntity.ok().body(result);
     }
 
     @DeleteMapping("/{familyId}")

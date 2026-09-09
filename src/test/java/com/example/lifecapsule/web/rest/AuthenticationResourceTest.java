@@ -65,8 +65,8 @@ class AuthenticationResourceTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "email": "demo@lifecapsule.uz",
-                                  "password": "Demo123!"
+                                  "username": "lifecapsule_user",
+                                  "password": "Secure123!"
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -79,8 +79,8 @@ class AuthenticationResourceTest {
     @Test
     void refreshReturnsNewAccessAndRefreshTokens() throws Exception {
         Users user = user();
-        when(jwtService.extractUserName("old-refresh-token")).thenReturn("demo@lifecapsule.uz");
-        when(authenticationService.findByEmail("demo@lifecapsule.uz")).thenReturn(user);
+        when(jwtService.extractUserName("old-refresh-token")).thenReturn("lifecapsule_user");
+        when(authenticationService.findByUsername("lifecapsule_user")).thenReturn(user);
         when(jwtService.isRefreshTokenValid("old-refresh-token", user)).thenReturn(true);
         when(jwtService.generateToken(user)).thenReturn("new-access-token");
         when(jwtService.generateRefreshToken(user)).thenReturn("new-refresh-token");
@@ -103,8 +103,8 @@ class AuthenticationResourceTest {
     private Users user() {
         Users user = new Users();
         user.setId(1L);
-        user.setEmail("demo@lifecapsule.uz");
-        user.setUserName("lifecapsule_demo");
+        user.setEmail("user@lifecapsule.uz");
+        user.setUserName("lifecapsule_user");
         return user;
     }
 }

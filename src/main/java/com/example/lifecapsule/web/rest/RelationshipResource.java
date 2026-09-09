@@ -10,9 +10,11 @@ import com.example.lifecapsule.service.dto.UpdateRelationshipDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -27,40 +29,54 @@ public class RelationshipResource {
     private final RelationshipService relationshipService;
 
     @PostMapping
-    public RelationshipDto createRelationship(
+    public ResponseEntity<RelationshipDto> createRelationship(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long familyId,
             @Valid @RequestBody CreateRelationshipDto input
     ) {
-        return relationshipService.createRelationship(currentUser, familyId, input);
+        RelationshipDto result = relationshipService.createRelationship(currentUser, familyId, input);
+        return ResponseEntity.ok().body(result);
     }
 
     @GetMapping
-    public PageResponse<RelationshipDto> getRelationships(
+    public ResponseEntity<PageResponse<RelationshipDto>> getRelationships(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long familyId,
-            PageFilter filter
+            @Valid @ModelAttribute PageFilter filter
     ) {
-        return relationshipService.getRelationships(currentUser, familyId, filter);
+        PageResponse<RelationshipDto> result = relationshipService.getRelationships(currentUser, familyId, filter);
+        return ResponseEntity.ok().body(result);
+    }
+
+    @PostMapping("/search")
+    public ResponseEntity<PageResponse<RelationshipDto>> searchRelationships(
+            @AuthenticationPrincipal Users currentUser,
+            @PathVariable Long familyId,
+            @Valid @RequestBody PageFilter filter
+    ) {
+        PageResponse<RelationshipDto> result = relationshipService.getRelationships(currentUser, familyId, filter);
+        return ResponseEntity.ok().body(result);
     }
 
     @GetMapping("/{relationshipId}")
-    public RelationshipDto getRelationship(
+    public ResponseEntity<RelationshipDto> getRelationship(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long familyId,
             @PathVariable Long relationshipId
     ) {
-        return relationshipService.getRelationship(currentUser, familyId, relationshipId);
+        RelationshipDto result = relationshipService.getRelationship(currentUser, familyId, relationshipId);
+        return ResponseEntity.ok().body(result);
     }
 
     @PutMapping("/{relationshipId}")
-    public RelationshipDto updateRelationship(
+    public ResponseEntity<RelationshipDto> updateRelationship(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long familyId,
             @PathVariable Long relationshipId,
             @Valid @RequestBody UpdateRelationshipDto input
     ) {
-        return relationshipService.updateRelationship(currentUser, familyId, relationshipId, input);
+        RelationshipDto result = relationshipService.updateRelationship(currentUser, familyId, relationshipId, input);
+        return ResponseEntity.ok().body(result);
     }
 
     @DeleteMapping("/{relationshipId}")

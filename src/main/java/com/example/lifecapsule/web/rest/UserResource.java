@@ -31,16 +31,18 @@ public class UserResource {
     }
 
     @GetMapping
-    public UserDto currentUser(@AuthenticationPrincipal Users user) {
-        return userService.getCurrentUser(user);
+    public ResponseEntity<UserDto> currentUser(@AuthenticationPrincipal Users user) {
+        UserDto result = userService.getCurrentUser(user);
+        return ResponseEntity.ok().body(result);
     }
 
     @PutMapping
-    public UserDto updateProfile(
+    public ResponseEntity<UserDto> updateProfile(
             @AuthenticationPrincipal Users user,
             @Valid @org.springframework.web.bind.annotation.RequestBody UpdateUserDto input
     ) {
-        return userService.updateProfile(user, input);
+        UserDto result = userService.updateProfile(user, input);
+        return ResponseEntity.ok().body(result);
     }
 
     @PatchMapping("/password")

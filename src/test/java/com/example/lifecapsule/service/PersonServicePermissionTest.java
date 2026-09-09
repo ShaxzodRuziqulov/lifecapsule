@@ -9,9 +9,11 @@ import com.example.lifecapsule.entity.enumirated.AccessStatus;
 import com.example.lifecapsule.entity.enumirated.FamilyAccessRole;
 import com.example.lifecapsule.entity.enumirated.Gender;
 import com.example.lifecapsule.entity.enumirated.RelationshipType;
+import com.example.lifecapsule.entity.enumirated.Role;
 import com.example.lifecapsule.errors.ForbiddenException;
 import com.example.lifecapsule.errors.NotFoundException;
 import com.example.lifecapsule.repository.FamilyAccessRepository;
+import com.example.lifecapsule.repository.FamilyRepository;
 import com.example.lifecapsule.repository.PersonRepository;
 import com.example.lifecapsule.repository.RelationshipRepository;
 import com.example.lifecapsule.repository.UserRepository;
@@ -45,6 +47,8 @@ class PersonServicePermissionTest {
     private RelationshipRepository relationshipRepository;
     @Mock
     private FamilyAccessRepository familyAccessRepository;
+    @Mock
+    private FamilyRepository familyRepository;
     @Mock
     private UserRepository userRepository;
     @Mock
@@ -85,6 +89,26 @@ class PersonServicePermissionTest {
     }
 
     @Test
+    void adminCanCreatePersonWithoutFamilyAccess() {
+        Users admin = user(99L);
+        admin.setRole(Role.ADMIN);
+        Family family = family(10L);
+        Person person = new Person();
+        PersonDto dto = new PersonDto();
+        dto.setFirstName("Ali");
+
+        when(familyRepository.findById(10L)).thenReturn(Optional.of(family));
+        when(personMapper.toEntity(any(CreatePersonDto.class))).thenReturn(person);
+        when(personRepository.save(person)).thenReturn(person);
+        when(personMapper.toDto(person)).thenReturn(dto);
+
+        PersonDto result = personService.createPerson(admin, 10L, input());
+
+        assertThat(result.getFirstName()).isEqualTo("Ali");
+        assertThat(person.getFamily()).isEqualTo(family);
+    }
+
+    @Test
     void userWithoutFamilyAccessCannotReadPerson() {
         Users outsider = user(9L);
         when(familyAccessRepository.findByFamilyIdAndUserId(10L, 9L))
@@ -118,6 +142,7 @@ class PersonServicePermissionTest {
         assertThat(result.getBirthPlace()).isNull();
         assertThat(result.getOccupation()).isNull();
         assertThat(result.getPhotoUrl()).isNull();
+        assertThat(result.getVideoUrl()).isNull();
         assertThat(result.getLinkedUserId()).isNull();
         assertThat(result.getBiography()).contains("yopiq");
     }
@@ -223,7 +248,7 @@ class PersonServicePermissionTest {
     private Family family(Long id) {
         Family family = new Family();
         family.setId(id);
-        family.setName("Demo");
+        family.setName("Test family");
         return family;
     }
 
@@ -258,6 +283,7 @@ class PersonServicePermissionTest {
         dto.setOccupation("Dizayner");
         dto.setBiography("Shaxsiy batafsil ma'lumot.");
         dto.setPhotoUrl("https://example.com/photo.jpg");
+        dto.setVideoUrl("https://example.com/video.mp4");
         dto.setLinkedUserId(77L);
         return dto;
     }

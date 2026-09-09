@@ -17,8 +17,10 @@ security:
       expiration-time: 2628000000
       refresh-expiration-time: 864000000
 app:
-  demo-data:
-    enabled: ${APP_DEMO_DATA_ENABLED:true}
-
-
-
+  admin:
+    enabled: ${APP_ADMIN_ENABLED:true}
+    username: ${APP_ADMIN_USERNAME:admin}
+    password: ${APP_ADMIN_PASSWORD:Admin123!}
+    email: ${APP_ADMIN_EMAIL:admin@lifecapsule.local}
+    first-name: ${APP_ADMIN_FIRST_NAME:Admin}
+    last-name: ${APP_ADMIN_LAST_NAME:User}

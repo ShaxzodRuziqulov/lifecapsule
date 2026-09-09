@@ -4,10 +4,12 @@ import com.example.lifecapsule.entity.FamilyAccess;
 import com.example.lifecapsule.entity.Users;
 import com.example.lifecapsule.entity.enumirated.AccessStatus;
 import com.example.lifecapsule.entity.enumirated.FamilyAccessRole;
+import com.example.lifecapsule.entity.enumirated.Role;
 import com.example.lifecapsule.errors.ConflictException;
 import com.example.lifecapsule.errors.ForbiddenException;
 import com.example.lifecapsule.errors.NotFoundException;
 import com.example.lifecapsule.repository.FamilyAccessRepository;
+import com.example.lifecapsule.repository.FamilyRepository;
 import com.example.lifecapsule.repository.UserRepository;
 import com.example.lifecapsule.service.dto.CreateFamilyAccessDto;
 import com.example.lifecapsule.service.dto.FamilyAccessDto;
@@ -24,6 +26,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class FamilyAccessService {
     private final FamilyAccessRepository familyAccessRepository;
+    private final FamilyRepository familyRepository;
     private final UserRepository userRepository;
     private final FamilyAccessMapper familyAccessMapper;
 
@@ -126,7 +129,7 @@ public class FamilyAccessService {
         getOwnerAccess(currentUser, familyId);
         FamilyAccess access = getAccessEntity(familyId, accessId);
 
-        if (access.getUser().getId().equals(currentUser.getId())) {
+        if (!isAdmin(currentUser) && access.getUser().getId().equals(currentUser.getId())) {
             throw new ForbiddenException("Owner o'z ruxsatini o'zgartira olmaydi");
         }
 
@@ -140,7 +143,7 @@ public class FamilyAccessService {
         getOwnerAccess(currentUser, familyId);
         FamilyAccess access = getAccessEntity(familyId, accessId);
 
-        if (access.getUser().getId().equals(currentUser.getId())) {
+        if (!isAdmin(currentUser) && access.getUser().getId().equals(currentUser.getId())) {
             throw new ForbiddenException("Owner o'z ruxsatini o'chira olmaydi");
         }
 
@@ -149,6 +152,10 @@ public class FamilyAccessService {
     }
 
     private FamilyAccess getOwnerAccess(Users currentUser, Long familyId) {
+        if (isAdmin(currentUser)) {
+            return adminAccess(currentUser, familyId);
+        }
+
         FamilyAccess access = familyAccessRepository.findByFamilyIdAndUserId(familyId, currentUser.getId())
                 .orElseThrow(() -> new NotFoundException("Oila topilmadi yoki sizda ruxsat yo'q"));
 
@@ -156,6 +163,21 @@ public class FamilyAccessService {
             throw new ForbiddenException("Bu amalni faqat oila egasi bajaradi");
         }
         return access;
+    }
+
+    private FamilyAccess adminAccess(Users currentUser, Long familyId) {
+        var family = familyRepository.findById(familyId)
+                .orElseThrow(() -> new NotFoundException("Oila topilmadi"));
+        FamilyAccess access = new FamilyAccess();
+        access.setFamily(family);
+        access.setUser(currentUser);
+        access.setAccessRole(FamilyAccessRole.OWNER);
+        access.setStatus(AccessStatus.ACTIVE);
+        return access;
+    }
+
+    private boolean isAdmin(Users currentUser) {
+        return currentUser != null && currentUser.getRole() == Role.ADMIN;
     }
 
     private FamilyAccess getAccessEntity(Long familyId, Long accessId) {

@@ -10,9 +10,11 @@ import com.example.lifecapsule.service.dto.PersonUpdateDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -27,40 +29,54 @@ public class PersonResource {
     private final PersonService personService;
 
     @PostMapping
-    public PersonDto createPerson(
+    public ResponseEntity<PersonDto> createPerson(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long familyId,
             @Valid @RequestBody CreatePersonDto input
     ) {
-        return personService.createPerson(currentUser, familyId, input);
+        PersonDto result = personService.createPerson(currentUser, familyId, input);
+        return ResponseEntity.ok().body(result);
     }
 
     @GetMapping
-    public PageResponse<PersonDto> getPersons(
+    public ResponseEntity<PageResponse<PersonDto>> getPersons(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long familyId,
-            PageFilter filter
+            @Valid @ModelAttribute PageFilter filter
     ) {
-        return personService.getPersons(currentUser, familyId, filter);
+        PageResponse<PersonDto> result = personService.getPersons(currentUser, familyId, filter);
+        return ResponseEntity.ok().body(result);
+    }
+
+    @PostMapping("/search")
+    public ResponseEntity<PageResponse<PersonDto>> searchPersons(
+            @AuthenticationPrincipal Users currentUser,
+            @PathVariable Long familyId,
+            @Valid @RequestBody PageFilter filter
+    ) {
+        PageResponse<PersonDto> result = personService.getPersons(currentUser, familyId, filter);
+        return ResponseEntity.ok().body(result);
     }
 
     @GetMapping("/{personId}")
-    public PersonDto getPerson(
+    public ResponseEntity<PersonDto> getPerson(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long familyId,
             @PathVariable Long personId
     ) {
-        return personService.getPerson(currentUser, familyId, personId);
+        PersonDto result = personService.getPerson(currentUser, familyId, personId);
+        return ResponseEntity.ok().body(result);
     }
 
     @PutMapping("/{personId}")
-    public PersonDto updatePerson(
+    public ResponseEntity<PersonDto> updatePerson(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long familyId,
             @PathVariable Long personId,
             @Valid @RequestBody PersonUpdateDto input
     ) {
-        return personService.updatePerson(currentUser, familyId, personId, input);
+        PersonDto result = personService.updatePerson(currentUser, familyId, personId, input);
+        return ResponseEntity.ok().body(result);
     }
 
     @DeleteMapping("/{personId}")

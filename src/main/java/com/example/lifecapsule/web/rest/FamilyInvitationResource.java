@@ -4,6 +4,7 @@ import com.example.lifecapsule.entity.Users;
 import com.example.lifecapsule.service.FamilyAccessService;
 import com.example.lifecapsule.service.dto.FamilyAccessDto;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,23 +21,26 @@ public class FamilyInvitationResource {
     private final FamilyAccessService familyAccessService;
 
     @GetMapping
-    public List<FamilyAccessDto> getMyInvitations(@AuthenticationPrincipal Users currentUser) {
-        return familyAccessService.getMyInvitations(currentUser);
+    public ResponseEntity<List<FamilyAccessDto>> getMyInvitations(@AuthenticationPrincipal Users currentUser) {
+        List<FamilyAccessDto> result = familyAccessService.getMyInvitations(currentUser);
+        return ResponseEntity.ok().body(result);
     }
 
     @PostMapping("/{accessId}/accept")
-    public FamilyAccessDto acceptInvitation(
+    public ResponseEntity<FamilyAccessDto> acceptInvitation(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long accessId
     ) {
-        return familyAccessService.acceptInvitation(currentUser, accessId);
+        FamilyAccessDto result = familyAccessService.acceptInvitation(currentUser, accessId);
+        return ResponseEntity.ok().body(result);
     }
 
     @PostMapping("/{accessId}/reject")
-    public FamilyAccessDto rejectInvitation(
+    public ResponseEntity<FamilyAccessDto> rejectInvitation(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long accessId
     ) {
-        return familyAccessService.rejectInvitation(currentUser, accessId);
+        FamilyAccessDto result = familyAccessService.rejectInvitation(currentUser, accessId);
+        return ResponseEntity.ok().body(result);
     }
 }

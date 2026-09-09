@@ -17,18 +17,16 @@ import java.util.Optional;
 public interface RelationshipRepository extends JpaRepository<Relationship, Long> {
     List<Relationship> findAllByFamilyIdOrderByCreatedAtAsc(Long familyId);
 
-    Page<Relationship> findAllByFamilyId(Long familyId, Pageable pageable);
-
     @Query("""
             select relationship from Relationship relationship
             where relationship.family.id = :familyId
-              and (
-                    lower(coalesce(relationship.note, '')) like lower(concat('%', :q, '%'))
-                    or lower(relationship.fromPerson.firstName) like lower(concat('%', :q, '%'))
-                    or lower(coalesce(relationship.fromPerson.lastName, '')) like lower(concat('%', :q, '%'))
-                    or lower(relationship.toPerson.firstName) like lower(concat('%', :q, '%'))
-                    or lower(coalesce(relationship.toPerson.lastName, '')) like lower(concat('%', :q, '%'))
-              )
+              and (cast(:q as string) is null or (
+                    lower(coalesce(relationship.note, '')) like lower(concat('%', cast(:q as string), '%'))
+                    or lower(relationship.fromPerson.firstName) like lower(concat('%', cast(:q as string), '%'))
+                    or lower(coalesce(relationship.fromPerson.lastName, '')) like lower(concat('%', cast(:q as string), '%'))
+                    or lower(relationship.toPerson.firstName) like lower(concat('%', cast(:q as string), '%'))
+                    or lower(coalesce(relationship.toPerson.lastName, '')) like lower(concat('%', cast(:q as string), '%'))
+              ))
             """)
     Page<Relationship> searchByFamilyId(
             @Param("familyId") Long familyId,

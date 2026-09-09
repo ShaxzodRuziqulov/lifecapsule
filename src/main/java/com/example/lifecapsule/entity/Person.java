@@ -71,6 +71,9 @@ public class Person extends BaseEntity {
     @Column(length = 500)
     private String photoUrl;
 
+    @Column(length = 500)
+    private String videoUrl;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "linked_user_id")
     private Users linkedUser;

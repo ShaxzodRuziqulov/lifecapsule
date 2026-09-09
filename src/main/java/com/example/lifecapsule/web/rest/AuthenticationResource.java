@@ -37,7 +37,7 @@ public class AuthenticationResource {
     @PostMapping("/signup")
     public ResponseEntity<UserDto> register(@Valid @RequestBody RegisterUserDto registerUserDto) {
         UserDto userDto = authenticationService.signup(registerUserDto);
-        return ResponseEntity.ok(userDto);
+        return ResponseEntity.ok().body(userDto);
     }
 
     @PostMapping("/login")
@@ -47,14 +47,14 @@ public class AuthenticationResource {
         String jwtToken = jwtService.generateToken(authenticatedUser);
         String refreshToken = jwtService.generateRefreshToken(authenticatedUser);
         LoginResponse loginResponse = new LoginResponse(jwtToken, refreshToken, "Bearer", jwtService.getExpirationTime());
-        return ResponseEntity.ok(loginResponse);
+        return ResponseEntity.ok().body(loginResponse);
     }
 
     @PostMapping("/refresh")
     public ResponseEntity<LoginResponse> refresh(@Valid @RequestBody RefreshTokenDto input) {
         try {
-            String email = jwtService.extractUserName(input.getRefreshToken());
-            Users user = authenticationService.findByEmail(email);
+            String username = jwtService.extractUserName(input.getRefreshToken());
+            Users user = authenticationService.findByUsername(username);
             if (!jwtService.isRefreshTokenValid(input.getRefreshToken(), user)) {
                 throw new BadCredentialsException("Refresh token yaroqsiz");
             }
@@ -62,7 +62,7 @@ public class AuthenticationResource {
             String jwtToken = jwtService.generateToken(user);
             String refreshToken = jwtService.generateRefreshToken(user);
             LoginResponse loginResponse = new LoginResponse(jwtToken, refreshToken, "Bearer", jwtService.getExpirationTime());
-            return ResponseEntity.ok(loginResponse);
+            return ResponseEntity.ok().body(loginResponse);
         } catch (JwtException | IllegalArgumentException exception) {
             throw new BadCredentialsException("Refresh token yaroqsiz");
         }

@@ -1,35 +1,19 @@
 package com.example.lifecapsule.service;
 
-import com.example.lifecapsule.entity.FamilyAccess;
-import com.example.lifecapsule.entity.Person;
-import com.example.lifecapsule.entity.Relationship;
-import com.example.lifecapsule.entity.Users;
-import com.example.lifecapsule.entity.enumirated.AccessStatus;
-import com.example.lifecapsule.entity.enumirated.FamilyAccessRole;
-import com.example.lifecapsule.entity.enumirated.Gender;
-import com.example.lifecapsule.entity.enumirated.RelationshipType;
+import com.example.lifecapsule.entity.*;
+import com.example.lifecapsule.entity.enumirated.*;
 import com.example.lifecapsule.errors.ForbiddenException;
 import com.example.lifecapsule.errors.NotFoundException;
-import com.example.lifecapsule.repository.FamilyAccessRepository;
-import com.example.lifecapsule.repository.PersonRepository;
-import com.example.lifecapsule.repository.RelationshipRepository;
-import com.example.lifecapsule.repository.UserRepository;
-import com.example.lifecapsule.service.dto.CreatePersonDto;
-import com.example.lifecapsule.service.dto.PageFilter;
-import com.example.lifecapsule.service.dto.PageResponse;
-import com.example.lifecapsule.service.dto.PersonDto;
-import com.example.lifecapsule.service.dto.PersonUpdateDto;
+import com.example.lifecapsule.repository.*;
+import com.example.lifecapsule.service.dto.*;
 import com.example.lifecapsule.service.mapper.PersonMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -45,6 +29,7 @@ public class PersonService {
     private final PersonRepository personRepository;
     private final RelationshipRepository relationshipRepository;
     private final FamilyAccessRepository familyAccessRepository;
+    private final FamilyRepository familyRepository;
     private final UserRepository userRepository;
     private final PersonMapper personMapper;
 
@@ -95,6 +80,7 @@ public class PersonService {
         person.setOccupation(trimToNull(personDto.getOccupation()));
         person.setBiography(trimToNull(personDto.getBiography()));
         person.setPhotoUrl(trimToNull(personDto.getPhotoUrl()));
+        person.setVideoUrl(trimToNull(personDto.getVideoUrl()));
 
         Users linkedUser = null;
         if (personDto.getLinkedUserId() != null) {
@@ -114,23 +100,13 @@ public class PersonService {
     ) {
         FamilyAccess access = getReadableAccess(currentUser, familyId);
         PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, access);
-        String normalizedSort = PageableUtils.normalizeSort(filter.getSortBy(), DEFAULT_SORT);
-        String normalizedDirection = PageableUtils.normalizeDirection(filter.getDirection());
-        Pageable pageable = PageableUtils.create(
-                filter.getPage(),
-                filter.getSize(),
-                normalizedSort,
-                normalizedDirection,
-                DEFAULT_SORT,
-                ALLOWED_SORTS
-        );
+        Pageable pageable = filter.toPageable(DEFAULT_SORT, ALLOWED_SORTS);
 
-        String search = normalizeSearch(filter.getQ());
-        var page = search == null
-                ? personRepository.findAllByFamilyId(familyId, pageable)
-                : searchByFamilyId(familyId, search, pageable, access);
+        String search = filter.normalizedQuery();
+        var page = searchByFamilyId(familyId, search, pageable, access);
 
-        return PageResponse.from(page.map(person -> toDto(person, privacyContext)), normalizedSort, normalizedDirection);
+        Page<PersonDto> result = page.map(person -> toDto(person, privacyContext));
+        return PageResponse.from(result, filter.resolveSort(DEFAULT_SORT), filter.resolveDirection());
     }
 
     @Transactional(readOnly = true)
@@ -161,7 +137,7 @@ public class PersonService {
         return dto;
     }
 
-    private org.springframework.data.domain.Page<Person> searchByFamilyId(
+    private Page<Person> searchByFamilyId(
             Long familyId,
             String search,
             Pageable pageable,
@@ -256,10 +232,15 @@ public class PersonService {
         dto.setOccupation(null);
         dto.setBiography("Ko'ruvchi rolida bu profilning batafsil ma'lumotlari yopiq.");
         dto.setPhotoUrl(null);
+        dto.setVideoUrl(null);
         dto.setLinkedUserId(null);
     }
 
     private FamilyAccess getReadableAccess(Users currentUser, Long familyId) {
+        if (isAdmin(currentUser)) {
+            return adminAccess(currentUser, familyId);
+        }
+
         FamilyAccess access = familyAccessRepository.findByFamilyIdAndUserId(familyId, currentUser.getId())
                 .orElseThrow(() -> new NotFoundException("Oila topilmadi yoki sizda ruxsat yo'q"));
 
@@ -267,6 +248,21 @@ public class PersonService {
             throw new NotFoundException("Oila topilmadi yoki sizda ruxsat yo'q");
         }
         return access;
+    }
+
+    private FamilyAccess adminAccess(Users currentUser, Long familyId) {
+        Family family = familyRepository.findById(familyId)
+                .orElseThrow(() -> new NotFoundException("Oila topilmadi"));
+        FamilyAccess access = new FamilyAccess();
+        access.setFamily(family);
+        access.setUser(currentUser);
+        access.setAccessRole(FamilyAccessRole.OWNER);
+        access.setStatus(AccessStatus.ACTIVE);
+        return access;
+    }
+
+    private boolean isAdmin(Users currentUser) {
+        return currentUser != null && currentUser.getRole() == Role.ADMIN;
     }
 
     private FamilyAccess getEditableAccess(Users currentUser, Long familyId) {
@@ -283,13 +279,6 @@ public class PersonService {
             return null;
         }
         return value.trim();
-    }
-
-    private String normalizeSearch(String q) {
-        if (q == null || q.isBlank()) {
-            return null;
-        }
-        return q.trim();
     }
 
     private record PersonPrivacyContext(FamilyAccess access, Set<Long> visibleSensitivePersonIds) {

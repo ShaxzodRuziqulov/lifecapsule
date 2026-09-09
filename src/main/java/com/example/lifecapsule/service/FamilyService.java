@@ -5,19 +5,17 @@ import com.example.lifecapsule.entity.FamilyAccess;
 import com.example.lifecapsule.entity.Users;
 import com.example.lifecapsule.entity.enumirated.AccessStatus;
 import com.example.lifecapsule.entity.enumirated.FamilyAccessRole;
+import com.example.lifecapsule.entity.enumirated.Role;
 import com.example.lifecapsule.errors.ForbiddenException;
 import com.example.lifecapsule.errors.NotFoundException;
 import com.example.lifecapsule.repository.FamilyAccessRepository;
 import com.example.lifecapsule.repository.FamilyRepository;
 import com.example.lifecapsule.repository.PersonRepository;
 import com.example.lifecapsule.repository.RelationshipRepository;
-import com.example.lifecapsule.service.dto.CreateFamilyDto;
-import com.example.lifecapsule.service.dto.FamilyDto;
-import com.example.lifecapsule.service.dto.PageFilter;
-import com.example.lifecapsule.service.dto.PageResponse;
-import com.example.lifecapsule.service.dto.UpdateFamilyDto;
+import com.example.lifecapsule.service.dto.*;
 import com.example.lifecapsule.service.mapper.FamilyMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +30,11 @@ public class FamilyService {
             "createdAt", "createdAt",
             "name", "family.name",
             "visibility", "family.visibility"
+    );
+    private static final Map<String, String> ADMIN_ALLOWED_SORTS = Map.of(
+            "createdAt", "createdAt",
+            "name", "name",
+            "visibility", "visibility"
     );
 
     private final FamilyRepository familyRepository;
@@ -64,68 +67,71 @@ public class FamilyService {
 
     @Transactional(readOnly = true)
     public PageResponse<FamilyDto> getMyFamilies(Users currentUser, PageFilter filter) {
-        String normalizedSort = PageableUtils.normalizeSort(filter.getSortBy(), DEFAULT_SORT);
-        String normalizedDirection = PageableUtils.normalizeDirection(filter.getDirection());
-        Pageable pageable = PageableUtils.create(
-                filter.getPage(),
-                filter.getSize(),
-                normalizedSort,
-                normalizedDirection,
-                DEFAULT_SORT,
-                ALLOWED_SORTS
-        );
+        String search = filter.normalizedQuery();
+        String sortBy = filter.resolveSort(DEFAULT_SORT);
+        String direction = filter.resolveDirection();
 
-        String search = normalizeSearch(filter.getQ());
-        var page = search == null
-                ? familyAccessRepository.findAllByUserIdAndStatus(currentUser.getId(), AccessStatus.ACTIVE, pageable)
-                : familyAccessRepository.searchMyFamilies(currentUser.getId(), AccessStatus.ACTIVE, search, pageable);
+        if (isAdmin(currentUser)) {
+            Pageable pageable = filter.toPageable(DEFAULT_SORT, ADMIN_ALLOWED_SORTS);
+            Page<FamilyDto> result = familyRepository.searchAllFamilies(search, pageable)
+                    .map(family -> toDto(family, FamilyAccessRole.OWNER));
+            return PageResponse.from(result, sortBy, direction);
+        }
 
-        return PageResponse.from(page.map(this::toDto), normalizedSort, normalizedDirection);
+        Pageable pageable = filter.toPageable(DEFAULT_SORT, ALLOWED_SORTS);
+
+        Page<FamilyDto> result = familyAccessRepository
+                .searchMyFamilies(currentUser.getId(), AccessStatus.ACTIVE, search, pageable)
+                .map(this::toDto);
+        return PageResponse.from(result, sortBy, direction);
     }
 
     @Transactional(readOnly = true)
     public FamilyDto getFamily(Users currentUser, Long familyId) {
+        if (isAdmin(currentUser)) {
+            return toDto(getFamilyEntity(familyId), FamilyAccessRole.OWNER);
+        }
         return toDto(getActiveAccess(currentUser, familyId));
     }
 
     @Transactional
     public FamilyDto updateFamily(Users currentUser, Long familyId, UpdateFamilyDto input) {
-        FamilyAccess access = getActiveAccess(currentUser, familyId);
+        FamilyAccess access = isAdmin(currentUser) ? null : getActiveAccess(currentUser, familyId);
 
-        if (access.getAccessRole() == FamilyAccessRole.VIEWER) {
+        if (access != null && access.getAccessRole() == FamilyAccessRole.VIEWER) {
             throw new ForbiddenException("Sizda oilani o'zgartirish huquqi yo'q");
         }
 
-        Family family = access.getFamily();
+        Family family = access == null ? getFamilyEntity(familyId) : access.getFamily();
         family.setName(input.getName().trim());
         family.setDescription(trimToNull(input.getDescription()));
         family.setVisibility(input.getVisibility());
 
         familyRepository.save(family);
-        return toDto(access);
+        return access == null ? toDto(family, FamilyAccessRole.OWNER) : toDto(access);
     }
 
     @Transactional
     public void deleteFamily(Users currentUser, Long familyId) {
-        FamilyAccess access = getActiveAccess(currentUser, familyId);
+        FamilyAccess access = isAdmin(currentUser) ? null : getActiveAccess(currentUser, familyId);
 
-        if (access.getAccessRole() != FamilyAccessRole.OWNER) {
+        if (access != null && access.getAccessRole() != FamilyAccessRole.OWNER) {
             throw new ForbiddenException("Oilani faqat egasi o'chira oladi");
         }
 
         relationshipRepository.deleteAllByFamilyId(familyId);
         personRepository.deleteAllByFamilyId(familyId);
         familyAccessRepository.deleteAllByFamilyId(familyId);
-        familyRepository.delete(access.getFamily());
-    }
-
-    private Family getFamilyIfUserHasAccess(Users currentUser, Long familyId) {
-        return getActiveAccess(currentUser, familyId).getFamily();
+        familyRepository.delete(access == null ? getFamilyEntity(familyId) : access.getFamily());
     }
 
     private FamilyDto toDto(FamilyAccess access) {
-        FamilyDto dto = familyMapper.toDto(access.getFamily());
-        dto.setAccessRole(access.getAccessRole());
+        return toDto(access.getFamily(), access.getAccessRole());
+    }
+
+    private FamilyDto toDto(Family family, FamilyAccessRole accessRole) {
+        FamilyDto dto = familyMapper.toDto(family);
+        dto.setAccessRole(accessRole);
         return dto;
     }
 
@@ -139,18 +145,20 @@ public class FamilyService {
         return access;
     }
 
+    private Family getFamilyEntity(Long familyId) {
+        return familyRepository.findById(familyId)
+                .orElseThrow(() -> new NotFoundException("Oila topilmadi"));
+    }
+
+    private boolean isAdmin(Users currentUser) {
+        return currentUser != null && currentUser.getRole() == Role.ADMIN;
+    }
+
     private String trimToNull(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
         return value.trim();
-    }
-
-    private String normalizeSearch(String q) {
-        if (q == null || q.isBlank()) {
-            return null;
-        }
-        return q.trim();
     }
 
 }

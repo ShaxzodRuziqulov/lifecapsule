@@ -44,5 +44,8 @@ public class CreatePersonDto {
     @Size(max = 500, message = "Rasm manzili 500 belgidan oshmasligi kerak")
     private String photoUrl;
 
+    @Size(max = 500, message = "Video manzili 500 belgidan oshmasligi kerak")
+    private String videoUrl;
+
     private Long linkedUserId;
 }

@@ -45,11 +45,11 @@ public class JwtService {
     }
 
     public String generateToken(Map<String, Object> extractClaims, UserDetails userDetails) {
-        return buildToken(extractClaims, userDetails, jwtExpiration);
+        return buildToken(extractClaims, userDetails, jwtExpiration, "access");
     }
 
     public String generateRefreshToken(Map<String, Object> extractClaims, UserDetails userDetails) {
-        return buildToken(extractClaims, userDetails, refreshExpiration);
+        return buildToken(extractClaims, userDetails, refreshExpiration, "refresh");
     }
 
     public long getExpirationTime() {
@@ -63,11 +63,13 @@ public class JwtService {
     private String buildToken(
             Map<String, Object> extraClaims,
             UserDetails userDetails,
-            long expiration
+            long expiration,
+            String tokenType
     ) {
         return Jwts
                 .builder()
                 .setClaims(extraClaims)
+                .claim("token_type", tokenType)
                 .setSubject(userDetails.getUsername())
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + expiration))
@@ -76,23 +78,23 @@ public class JwtService {
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUserName(token);
-        return username.equals(userDetails.getUsername())
-                && userDetails.isEnabled()
-                && userDetails.isAccountNonExpired()
-                && userDetails.isAccountNonLocked()
-                && userDetails.isCredentialsNonExpired()
-                && !isTokenExpired(token);
+        return isValidForType(token, userDetails, "access");
     }
 
     public boolean isRefreshTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUserName(token);
-        return username.equals(userDetails.getUsername())
+        return isValidForType(token, userDetails, "refresh");
+    }
+
+    private boolean isValidForType(String token, UserDetails userDetails, String tokenType) {
+        final Claims claims = extractAllClaims(token);
+        return tokenType.equals(claims.get("token_type", String.class))
+                && userDetails.getUsername().equals(claims.getSubject())
                 && userDetails.isEnabled()
                 && userDetails.isAccountNonExpired()
                 && userDetails.isAccountNonLocked()
                 && userDetails.isCredentialsNonExpired()
-                && !isTokenExpired(token);
+                && claims.getExpiration() != null
+                && claims.getExpiration().after(new Date());
     }
 
     public boolean isTokenExpired(String token) {

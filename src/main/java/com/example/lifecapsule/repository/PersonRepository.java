@@ -16,19 +16,17 @@ import java.util.Optional;
 public interface PersonRepository extends JpaRepository<Person, Long> {
     List<Person> findAllByFamilyIdOrderByFirstNameAsc(Long familyId);
 
-    Page<Person> findAllByFamilyId(Long familyId, Pageable pageable);
-
     @Query("""
             select person from Person person
             where person.family.id = :familyId
-              and (
-                    lower(person.firstName) like lower(concat('%', :q, '%'))
-                    or lower(coalesce(person.lastName, '')) like lower(concat('%', :q, '%'))
-                    or lower(coalesce(person.maidenName, '')) like lower(concat('%', :q, '%'))
-                    or lower(coalesce(person.birthPlace, '')) like lower(concat('%', :q, '%'))
-                    or lower(coalesce(person.occupation, '')) like lower(concat('%', :q, '%'))
-                    or lower(coalesce(person.biography, '')) like lower(concat('%', :q, '%'))
-              )
+              and (cast(:q as string) is null or (
+                    lower(person.firstName) like lower(concat('%', cast(:q as string), '%'))
+                    or lower(coalesce(person.lastName, '')) like lower(concat('%', cast(:q as string), '%'))
+                    or lower(coalesce(person.maidenName, '')) like lower(concat('%', cast(:q as string), '%'))
+                    or lower(coalesce(person.birthPlace, '')) like lower(concat('%', cast(:q as string), '%'))
+                    or lower(coalesce(person.occupation, '')) like lower(concat('%', cast(:q as string), '%'))
+                    or lower(coalesce(person.biography, '')) like lower(concat('%', cast(:q as string), '%'))
+              ))
             """)
     Page<Person> searchByFamilyId(
             @Param("familyId") Long familyId,
@@ -39,10 +37,10 @@ public interface PersonRepository extends JpaRepository<Person, Long> {
     @Query("""
             select person from Person person
             where person.family.id = :familyId
-              and (
-                    lower(person.firstName) like lower(concat('%', :q, '%'))
-                    or lower(coalesce(person.lastName, '')) like lower(concat('%', :q, '%'))
-              )
+              and (cast(:q as string) is null or (
+                    lower(person.firstName) like lower(concat('%', cast(:q as string), '%'))
+                    or lower(coalesce(person.lastName, '')) like lower(concat('%', cast(:q as string), '%'))
+              ))
             """)
     Page<Person> searchBasicByFamilyId(
             @Param("familyId") Long familyId,

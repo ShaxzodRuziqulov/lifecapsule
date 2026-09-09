@@ -24,6 +24,7 @@ public class PersonDto {
     private String occupation;
     private String biography;
     private String photoUrl;
+    private String videoUrl;
     private Long linkedUserId;
     private LocalDateTime createdAt;
     private LocalDateTime updateAt;

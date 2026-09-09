@@ -27,39 +27,43 @@ public class FamilyAccessResource {
     private final FamilyAccessService familyAccessService;
 
     @GetMapping
-    public List<FamilyAccessDto> getFamilyAccesses(
+    public ResponseEntity<List<FamilyAccessDto>> getFamilyAccesses(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long familyId
     ) {
-        return familyAccessService.getFamilyAccesses(currentUser, familyId);
+        List<FamilyAccessDto> result = familyAccessService.getFamilyAccesses(currentUser, familyId);
+        return ResponseEntity.ok().body(result);
     }
 
     @PostMapping
-    public FamilyAccessDto addFamilyAccess(
+    public ResponseEntity<FamilyAccessDto> addFamilyAccess(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long familyId,
             @Valid @RequestBody CreateFamilyAccessDto input
     ) {
-        return familyAccessService.addFamilyAccess(currentUser, familyId, input);
+        FamilyAccessDto result = familyAccessService.addFamilyAccess(currentUser, familyId, input);
+        return ResponseEntity.ok().body(result);
     }
 
     @PostMapping("/invitations")
-    public FamilyAccessDto inviteFamilyAccess(
+    public ResponseEntity<FamilyAccessDto> inviteFamilyAccess(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long familyId,
             @Valid @RequestBody CreateFamilyAccessDto input
     ) {
-        return familyAccessService.inviteFamilyAccess(currentUser, familyId, input);
+        FamilyAccessDto result = familyAccessService.inviteFamilyAccess(currentUser, familyId, input);
+        return ResponseEntity.ok().body(result);
     }
 
     @PutMapping("/{accessId}")
-    public FamilyAccessDto updateFamilyAccess(
+    public ResponseEntity<FamilyAccessDto> updateFamilyAccess(
             @AuthenticationPrincipal Users currentUser,
             @PathVariable Long familyId,
             @PathVariable Long accessId,
             @Valid @RequestBody UpdateFamilyAccessDto input
     ) {
-        return familyAccessService.updateFamilyAccess(currentUser, familyId, accessId, input);
+        FamilyAccessDto result = familyAccessService.updateFamilyAccess(currentUser, familyId, accessId, input);
+        return ResponseEntity.ok().body(result);
     }
 
     @DeleteMapping("/{accessId}")

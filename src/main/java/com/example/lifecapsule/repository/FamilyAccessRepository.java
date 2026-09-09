@@ -18,16 +18,14 @@ public interface FamilyAccessRepository extends JpaRepository<FamilyAccess, Long
 
     List<FamilyAccess> findAllByUserIdAndStatusOrderByCreatedAtDesc(Long userId, AccessStatus status);
 
-    Page<FamilyAccess> findAllByUserIdAndStatus(Long userId, AccessStatus status, Pageable pageable);
-
     @Query("""
             select access from FamilyAccess access
             where access.user.id = :userId
               and access.status = :status
-              and (
-                    lower(access.family.name) like lower(concat('%', :q, '%'))
-                    or lower(coalesce(access.family.description, '')) like lower(concat('%', :q, '%'))
-              )
+              and (cast(:q as string) is null or (
+                    lower(access.family.name) like lower(concat('%', cast(:q as string), '%'))
+                    or lower(coalesce(access.family.description, '')) like lower(concat('%', cast(:q as string), '%'))
+              ))
             """)
     Page<FamilyAccess> searchMyFamilies(
             @Param("userId") Long userId,

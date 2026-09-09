@@ -6,24 +6,22 @@
  */
 package com.example.lifecapsule.service.dto;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
 
 public class LoginDto {
-    @NotBlank(message = "Email bo'sh bo'lishi mumkin emas")
-    @Email(message = "Email noto'g'ri formatda")
-    private String email;
+    @NotBlank(message = "Foydalanuvchi nomi bo'sh bo'lishi mumkin emas")
+    private String username;
 
     @NotBlank(message = "Parol bo'sh bo'lishi mumkin emas")
     private String password;
 
-    public String getEmail() {
-        return email;
+    public String getUsername() {
+        return username;
     }
 
-    public void setEmail(String email) {
-        this.email = email;
+    public void setUsername(String username) {
+        this.username = username;
     }
 
     public String getPassword() {
