@@ -4,6 +4,7 @@ import com.example.lifecapsule.entity.Relationship;
 import com.example.lifecapsule.entity.enumirated.RelationshipType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.Modifying;
@@ -17,6 +18,7 @@ import java.util.Optional;
 public interface RelationshipRepository extends JpaRepository<Relationship, Long> {
     List<Relationship> findAllByFamilyIdOrderByCreatedAtAsc(Long familyId);
 
+    @EntityGraph(attributePaths = {"family", "fromPerson", "toPerson"})
     @Query("""
             select relationship from Relationship relationship
             where relationship.family.id = :familyId

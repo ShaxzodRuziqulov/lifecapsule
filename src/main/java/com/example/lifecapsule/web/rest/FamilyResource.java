@@ -33,15 +33,6 @@ public class FamilyResource {
         return ResponseEntity.ok().body(result);
     }
 
-    @PostMapping("/search")
-    public ResponseEntity<PageResponse<FamilyDto>> searchMyFamilies(
-            @AuthenticationPrincipal Users currentUser,
-            @Valid @RequestBody PageFilter filter
-    ) {
-        PageResponse<FamilyDto> result = familyService.getMyFamilies(currentUser, filter);
-        return ResponseEntity.ok().body(result);
-    }
-
     @GetMapping("/{familyId}")
     public ResponseEntity<FamilyDto> getFamily(
             @AuthenticationPrincipal Users currentUser,

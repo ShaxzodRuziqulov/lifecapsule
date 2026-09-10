@@ -106,7 +106,7 @@ public class PersonService {
         var page = searchByFamilyId(familyId, search, pageable, access);
 
         Page<PersonDto> result = page.map(person -> toDto(person, privacyContext));
-        return PageResponse.from(result, filter.resolveSort(DEFAULT_SORT), filter.resolveDirection());
+        return new PageResponse<>(result);
     }
 
     @Transactional(readOnly = true)

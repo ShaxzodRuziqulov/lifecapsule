@@ -80,7 +80,7 @@ public class RelationshipService {
         var page = relationshipRepository.searchByFamilyId(familyId, search, pageable);
 
         Page<RelationshipDto> result = page.map(relationshipMapper::toDto);
-        return PageResponse.from(result, filter.resolveSort(DEFAULT_SORT), filter.resolveDirection());
+        return new PageResponse<>(result);
     }
 
     @Transactional(readOnly = true)

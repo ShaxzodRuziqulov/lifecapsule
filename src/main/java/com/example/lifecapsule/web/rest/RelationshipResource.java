@@ -48,16 +48,6 @@ public class RelationshipResource {
         return ResponseEntity.ok().body(result);
     }
 
-    @PostMapping("/search")
-    public ResponseEntity<PageResponse<RelationshipDto>> searchRelationships(
-            @AuthenticationPrincipal Users currentUser,
-            @PathVariable Long familyId,
-            @Valid @RequestBody PageFilter filter
-    ) {
-        PageResponse<RelationshipDto> result = relationshipService.getRelationships(currentUser, familyId, filter);
-        return ResponseEntity.ok().body(result);
-    }
-
     @GetMapping("/{relationshipId}")
     public ResponseEntity<RelationshipDto> getRelationship(
             @AuthenticationPrincipal Users currentUser,

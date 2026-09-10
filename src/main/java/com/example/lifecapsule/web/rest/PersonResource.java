@@ -48,16 +48,6 @@ public class PersonResource {
         return ResponseEntity.ok().body(result);
     }
 
-    @PostMapping("/search")
-    public ResponseEntity<PageResponse<PersonDto>> searchPersons(
-            @AuthenticationPrincipal Users currentUser,
-            @PathVariable Long familyId,
-            @Valid @RequestBody PageFilter filter
-    ) {
-        PageResponse<PersonDto> result = personService.getPersons(currentUser, familyId, filter);
-        return ResponseEntity.ok().body(result);
-    }
-
     @GetMapping("/{personId}")
     public ResponseEntity<PersonDto> getPerson(
             @AuthenticationPrincipal Users currentUser,

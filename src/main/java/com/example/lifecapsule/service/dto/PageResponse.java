@@ -1,35 +1,28 @@
 package com.example.lifecapsule.service.dto;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.data.domain.Page;
 
 import java.util.List;
 
-public record PageResponse<T>(
-        List<T> content,
-        int page,
-        int size,
-        long totalElements,
-        int totalPages,
-        int numberOfElements,
-        boolean first,
-        boolean last,
-        boolean empty,
-        String sortBy,
-        String direction
-) {
-    public static <T> PageResponse<T> from(Page<T> page, String sortBy, String direction) {
-        return new PageResponse<>(
-                page.getContent(),
-                page.getNumber(),
-                page.getSize(),
-                page.getTotalElements(),
-                page.getTotalPages(),
-                page.getNumberOfElements(),
-                page.isFirst(),
-                page.isLast(),
-                page.isEmpty(),
-                sortBy,
-                direction
-        );
+@Getter
+@Setter
+public class PageResponse<T> {
+    private List<T> content;
+    private int pageNumber;
+    private int pageSize;
+    private long totalElements;
+    private int totalPages;
+    private boolean last;
+
+    public PageResponse(Page<T> page) {
+        this.content = page.getContent();
+        this.pageNumber = page.getNumber();
+        this.pageSize = page.getSize();
+        this.totalElements = page.getTotalElements();
+        this.totalPages = page.getTotalPages();
+        this.last = page.isLast();
     }
+
 }

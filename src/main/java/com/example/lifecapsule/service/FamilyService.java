@@ -27,11 +27,13 @@ import java.util.Map;
 public class FamilyService {
     private static final String DEFAULT_SORT = "createdAt";
     private static final Map<String, String> ALLOWED_SORTS = Map.of(
-            "createdAt", "createdAt",
+            "id", "family.id",
+            "createdAt", "family.createdAt",
             "name", "family.name",
             "visibility", "family.visibility"
     );
     private static final Map<String, String> ADMIN_ALLOWED_SORTS = Map.of(
+            "id", "id",
             "createdAt", "createdAt",
             "name", "name",
             "visibility", "visibility"
@@ -68,22 +70,20 @@ public class FamilyService {
     @Transactional(readOnly = true)
     public PageResponse<FamilyDto> getMyFamilies(Users currentUser, PageFilter filter) {
         String search = filter.normalizedQuery();
-        String sortBy = filter.resolveSort(DEFAULT_SORT);
-        String direction = filter.resolveDirection();
 
         if (isAdmin(currentUser)) {
             Pageable pageable = filter.toPageable(DEFAULT_SORT, ADMIN_ALLOWED_SORTS);
-            Page<FamilyDto> result = familyRepository.searchAllFamilies(search, pageable)
+            Page<FamilyDto> result = familyRepository
+                    .searchAllFamiliesPaging(search, pageable)
                     .map(family -> toDto(family, FamilyAccessRole.OWNER));
-            return PageResponse.from(result, sortBy, direction);
+            return new PageResponse<>(result);
         }
 
         Pageable pageable = filter.toPageable(DEFAULT_SORT, ALLOWED_SORTS);
-
         Page<FamilyDto> result = familyAccessRepository
-                .searchMyFamilies(currentUser.getId(), AccessStatus.ACTIVE, search, pageable)
+                .searchMyFamiliesPaging(currentUser.getId(), AccessStatus.ACTIVE, search, pageable)
                 .map(this::toDto);
-        return PageResponse.from(result, sortBy, direction);
+        return new PageResponse<>(result);
     }
 
     @Transactional(readOnly = true)
