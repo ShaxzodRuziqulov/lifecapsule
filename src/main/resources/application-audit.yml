@@ -1,0 +1,19 @@
+server:
+  port: 8087
+
+spring:
+  datasource:
+    # A dedicated local copy of the demo dataset. Never point this profile at the
+    # working `lifecapsule` database.
+    url: jdbc:postgresql://localhost:5432/lifecapsule_audit
+    username: ${LIFECAPSULE_AUDIT_DB_USER:postgres}
+    password: ${LIFECAPSULE_AUDIT_DB_PASSWORD:123}
+  jpa:
+    hibernate:
+      # The audit environment must reveal schema drift, not silently alter data.
+      ddl-auto: validate
+
+app:
+  admin:
+    # Do not add or alter accounts when the copied dataset starts.
+    enabled: false
