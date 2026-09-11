@@ -25,9 +25,9 @@ public interface FamilyAccessRepository extends JpaRepository<FamilyAccess, Long
             join access.family family
             where access.user.id = :userId
               and access.status = :status
-              and (:q is null or (
-                    lower(family.name) like lower(concat('%', :q, '%'))
-                    or lower(coalesce(family.description, '')) like lower(concat('%', :q, '%'))
+              and (cast(:q as string) is null or (
+                    lower(family.name) like lower(concat('%', cast(:q as string), '%'))
+                    or lower(coalesce(family.description, '')) like lower(concat('%', cast(:q as string), '%'))
               ))
             """)
     Page<FamilyAccess> searchMyFamiliesPaging(

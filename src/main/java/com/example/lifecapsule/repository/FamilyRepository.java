@@ -24,9 +24,9 @@ public interface FamilyRepository extends JpaRepository<Family, Long> {
     @Query("""
         select family
         from Family family
-        where :q is null
-           or lower(family.name) like lower(concat('%', :q, '%'))
-           or lower(coalesce(family.description, '')) like lower(concat('%', :q, '%'))
+        where cast(:q as string) is null
+           or lower(family.name) like lower(concat('%', cast(:q as string), '%'))
+           or lower(coalesce(family.description, '')) like lower(concat('%', cast(:q as string), '%'))
         """)
     Page<Family> searchAllFamiliesPaging(
             @Param("q") String q,
