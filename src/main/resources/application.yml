@@ -2,21 +2,27 @@ server:
   port: 8085
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/lifecapsule
-    username: postgres
-    password: 123
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/lifecapsule}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:123}
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
     database: postgresql
     database-platform: org.hibernate.dialect.PostgreSQLDialect
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
 security:
   jwt:
-      secret-key: 3FKEvKtG8LjD4CvCzWSmlBblzzoFsz_-l8DxmgWNXGNS_ihao6WVihREniCj0yy3KjRCmsAFoDnLAnfqQ5tvDw
+      secret-key: ${JWT_SECRET:jNVeWHuTfBMybSjIdCERIFxB3STWKAJpxZSID85M-__V65Tg3NgClGD1jLm7XdmPC8dOEqf7RtTK32IbxGbp3A}
       expiration-time: 2628000000
       refresh-expiration-time: 864000000
 app:
+  storage:
+    root: ${APP_STORAGE_ROOT:./uploads}
   admin:
     enabled: ${APP_ADMIN_ENABLED:true}
     username: ${APP_ADMIN_USERNAME:admin}

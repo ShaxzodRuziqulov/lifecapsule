@@ -141,8 +141,6 @@ class PersonServicePermissionTest {
         assertThat(result.getDeathDate()).isNull();
         assertThat(result.getBirthPlace()).isNull();
         assertThat(result.getOccupation()).isNull();
-        assertThat(result.getPhotoUrl()).isNull();
-        assertThat(result.getVideoUrl()).isNull();
         assertThat(result.getLinkedUserId()).isNull();
         assertThat(result.getBiography()).contains("yopiq");
     }
@@ -282,8 +280,6 @@ class PersonServicePermissionTest {
         dto.setBirthPlace("Toshkent");
         dto.setOccupation("Dizayner");
         dto.setBiography("Shaxsiy batafsil ma'lumot.");
-        dto.setPhotoUrl("https://example.com/photo.jpg");
-        dto.setVideoUrl("https://example.com/video.mp4");
         dto.setLinkedUserId(77L);
         return dto;
     }

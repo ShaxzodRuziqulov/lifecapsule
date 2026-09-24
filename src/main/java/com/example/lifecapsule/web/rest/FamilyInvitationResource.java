@@ -26,6 +26,12 @@ public class FamilyInvitationResource {
         return ResponseEntity.ok().body(result);
     }
 
+    @GetMapping("/history")
+    public ResponseEntity<List<FamilyAccessDto>> getMyInvitationHistory(@AuthenticationPrincipal Users currentUser) {
+        List<FamilyAccessDto> result = familyAccessService.getMyInvitationHistory(currentUser);
+        return ResponseEntity.ok().body(result);
+    }
+
     @PostMapping("/{accessId}/accept")
     public ResponseEntity<FamilyAccessDto> acceptInvitation(
             @AuthenticationPrincipal Users currentUser,

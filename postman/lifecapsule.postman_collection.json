@@ -86,7 +86,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
@@ -145,6 +145,33 @@
       ]
     },
     {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Search Users (by username)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/users/search?query={{userSearchQuery}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "{{userSearchQuery}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Me",
       "item": [
         {
@@ -183,6 +210,32 @@
               ],
               "path": [
                 "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"oldPassword\": \"{{password}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/me/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "me",
+                "password"
               ]
             }
           }
@@ -481,6 +534,148 @@
       ]
     },
     {
+      "name": "Media",
+      "item": [
+        {
+          "name": "List Person Media",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/persons/{{personId}}/media",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "persons",
+                "{{personId}}",
+                "media"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Upload Person Media",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('mediaId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "caption",
+                  "type": "text",
+                  "value": "Postman orqali yuklangan fayl"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/persons/{{personId}}/media",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "persons",
+                "{{personId}}",
+                "media"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Media Caption",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"caption\": \"Yangilangan izoh\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/persons/{{personId}}/media/{{mediaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "persons",
+                "{{personId}}",
+                "media",
+                "{{mediaId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Download Media File",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/persons/{{personId}}/media/{{mediaId}}/file",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "persons",
+                "{{personId}}",
+                "media",
+                "{{mediaId}}",
+                "file"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Media",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/families/{{familyId}}/persons/{{personId}}/media/{{mediaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "families",
+                "{{familyId}}",
+                "persons",
+                "{{personId}}",
+                "media",
+                "{{mediaId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Relationships",
       "item": [
         {
@@ -771,6 +966,83 @@
       ]
     },
     {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "List All Families (admin only)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/families?size=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "families"
+              ],
+              "query": [
+                {
+                  "key": "size",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List All Users (admin only)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?size=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "size",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reset User Password (admin only)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newPassword\": \"{{newPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/{{resetUsername}}/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "users",
+                "{{resetUsername}}",
+                "password"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Family Invitations",
       "item": [
         {
@@ -784,6 +1056,22 @@
               ],
               "path": [
                 "family-invitations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Invitation History",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/family-invitations/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "family-invitations",
+                "history"
               ]
             }
           }

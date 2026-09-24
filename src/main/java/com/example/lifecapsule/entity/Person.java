@@ -74,6 +74,15 @@ public class Person extends BaseEntity {
     @Column(length = 500)
     private String videoUrl;
 
+    @Column(length = 300)
+    private String avatarStoredFileName;
+
+    @Column(length = 300)
+    private String avatarOriginalFileName;
+
+    @Column(length = 150)
+    private String avatarContentType;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "linked_user_id")
     private Users linkedUser;

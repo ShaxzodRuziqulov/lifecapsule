@@ -12,12 +12,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
 
 @Service
 @RequiredArgsConstructor
 public class PersonService {
+    private static final long MAX_AVATAR_FILE_SIZE = 10L * 1024 * 1024;
+    private static final Set<String> ALLOWED_AVATAR_TYPES = Set.of("image/jpeg", "image/png", "image/webp", "image/gif");
     private static final String DEFAULT_SORT = "firstName";
     private static final Map<String, String> ALLOWED_SORTS = Map.of(
             "firstName", "firstName",
@@ -32,6 +35,8 @@ public class PersonService {
     private final FamilyRepository familyRepository;
     private final UserRepository userRepository;
     private final PersonMapper personMapper;
+    private final MediaRepository mediaRepository;
+    private final StorageService storageService;
 
     @Transactional
     public PersonDto createPerson(Users currentUser, Long familyId, CreatePersonDto input) {
@@ -52,7 +57,7 @@ public class PersonService {
             person.setLinkedUser(linkedUser);
         }
 
-        return personMapper.toDto(personRepository.save(person));
+        return applyAvatarUrl(personMapper.toDto(personRepository.save(person)), person);
     }
 
     @Transactional
@@ -79,8 +84,6 @@ public class PersonService {
         person.setBirthPlace(trimToNull(personDto.getBirthPlace()));
         person.setOccupation(trimToNull(personDto.getOccupation()));
         person.setBiography(trimToNull(personDto.getBiography()));
-        person.setPhotoUrl(trimToNull(personDto.getPhotoUrl()));
-        person.setVideoUrl(trimToNull(personDto.getVideoUrl()));
 
         Users linkedUser = null;
         if (personDto.getLinkedUserId() != null) {
@@ -89,7 +92,7 @@ public class PersonService {
         }
         person.setLinkedUser(linkedUser);
 
-        return personMapper.toDto(personRepository.save(person));
+        return applyAvatarUrl(personMapper.toDto(personRepository.save(person)), person);
     }
 
     @Transactional(readOnly = true)
@@ -116,12 +119,67 @@ public class PersonService {
         return toDto(getPersonEntity(familyId, personId), privacyContext);
     }
 
+    /**
+     * Whether currentUser may see this person's private details (and by extension, their media) -
+     * false for the same "mahram" masking applied to sensitive female profiles for VIEWER access.
+     */
+    @Transactional(readOnly = true)
+    public boolean canViewFullProfile(Users currentUser, Long familyId, Long personId) {
+        FamilyAccess access = getReadableAccess(currentUser, familyId);
+        Person person = getPersonEntity(familyId, personId);
+        PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, access);
+        return !shouldMaskSensitiveProfile(person, privacyContext);
+    }
+
     @Transactional
     public void deletePerson(Users currentUser, Long familyId, Long personId) {
         getEditableAccess(currentUser, familyId);
         Person person = getPersonEntity(familyId, personId);
+        List<Media> media = mediaRepository.findAllByPersonIdOrderByCreatedAtAsc(personId);
+        String avatarPath = person.getAvatarStoredFileName();
         relationshipRepository.deleteAllByFamilyIdAndPersonId(familyId, personId);
+        mediaRepository.deleteAllByPersonId(personId);
         personRepository.delete(person);
+        media.forEach(item -> storageService.delete(item.getStoredFileName()));
+        if (avatarPath != null) storageService.delete(avatarPath);
+    }
+
+    @Transactional
+    public PersonDto uploadAvatar(Users currentUser, Long familyId, Long personId, MultipartFile file) {
+        getEditableAccess(currentUser, familyId);
+        Person person = getPersonEntity(familyId, personId);
+        if (file == null || file.isEmpty()) throw new IllegalArgumentException("Rasm tanlanmagan");
+        if (file.getSize() > MAX_AVATAR_FILE_SIZE) throw new IllegalArgumentException("Profil rasmi 10 MB dan katta bo'lmasligi kerak");
+        if (!ALLOWED_AVATAR_TYPES.contains(file.getContentType())) throw new IllegalArgumentException("Profil uchun faqat rasm fayllari qabul qilinadi");
+
+        String previousPath = person.getAvatarStoredFileName();
+        person.setAvatarStoredFileName(storageService.storePersonAvatar(familyId, personId, file));
+        person.setAvatarOriginalFileName(file.getOriginalFilename());
+        person.setAvatarContentType(file.getContentType());
+        Person saved = personRepository.save(person);
+        if (previousPath != null) storageService.delete(previousPath);
+        return applyAvatarUrl(personMapper.toDto(saved), saved);
+    }
+
+    @Transactional(readOnly = true)
+    public AvatarFile loadAvatar(Users currentUser, Long familyId, Long personId) {
+        if (!canViewFullProfile(currentUser, familyId, personId)) throw new NotFoundException("Profil rasmi topilmadi");
+        Person person = getPersonEntity(familyId, personId);
+        if (person.getAvatarStoredFileName() == null) throw new NotFoundException("Profil rasmi topilmadi");
+        return new AvatarFile(storageService.loadAsResource(person.getAvatarStoredFileName()), person.getAvatarContentType(), person.getAvatarOriginalFileName());
+    }
+
+    @Transactional
+    public void deleteAvatar(Users currentUser, Long familyId, Long personId) {
+        getEditableAccess(currentUser, familyId);
+        Person person = getPersonEntity(familyId, personId);
+        String path = person.getAvatarStoredFileName();
+        if (path == null) return;
+        person.setAvatarStoredFileName(null);
+        person.setAvatarOriginalFileName(null);
+        person.setAvatarContentType(null);
+        personRepository.save(person);
+        storageService.delete(path);
     }
 
     private Person getPersonEntity(Long familyId, Long personId) {
@@ -130,7 +188,7 @@ public class PersonService {
     }
 
     private PersonDto toDto(Person person, PersonPrivacyContext privacyContext) {
-        PersonDto dto = personMapper.toDto(person);
+        PersonDto dto = applyAvatarUrl(personMapper.toDto(person), person);
         if (shouldMaskSensitiveProfile(person, privacyContext)) {
             maskSensitiveProfile(dto);
         }
@@ -231,8 +289,7 @@ public class PersonService {
         dto.setBirthPlace(null);
         dto.setOccupation(null);
         dto.setBiography("Ko'ruvchi rolida bu profilning batafsil ma'lumotlari yopiq.");
-        dto.setPhotoUrl(null);
-        dto.setVideoUrl(null);
+        dto.setAvatarUrl(null);
         dto.setLinkedUserId(null);
     }
 
@@ -280,6 +337,15 @@ public class PersonService {
         }
         return value.trim();
     }
+
+    private PersonDto applyAvatarUrl(PersonDto dto, Person person) {
+        if (person.getAvatarStoredFileName() != null) {
+            dto.setAvatarUrl("/families/%d/persons/%d/avatar".formatted(person.getFamily().getId(), person.getId()));
+        }
+        return dto;
+    }
+
+    public record AvatarFile(org.springframework.core.io.Resource resource, String contentType, String fileName) { }
 
     private record PersonPrivacyContext(FamilyAccess access, Set<Long> visibleSensitivePersonIds) {
     }
