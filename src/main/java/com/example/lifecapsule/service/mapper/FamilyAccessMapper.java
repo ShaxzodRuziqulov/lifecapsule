@@ -17,6 +17,7 @@ public interface FamilyAccessMapper {
     FamilyAccess toEntity(CreateFamilyAccessDto dto);
 
     @Mapping(target = "familyId", source = "family.id")
+    @Mapping(target = "familyName", source = "family.name")
     @Mapping(target = "userId", source = "user.id")
     @Mapping(target = "userEmail", source = "user.email")
     @Mapping(target = "userFirstName", source = "user.firstName")

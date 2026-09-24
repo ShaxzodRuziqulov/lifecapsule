@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 public class FamilyAccessDto {
     private Long id;
     private Long familyId;
+    private String familyName;
     private Long userId;
     private String userEmail;
     private String userFirstName;

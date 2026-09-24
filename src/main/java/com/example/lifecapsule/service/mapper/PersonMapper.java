@@ -13,9 +13,15 @@ public interface PersonMapper {
     @Mapping(target = "linkedUser", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updateAt", ignore = true)
+    @Mapping(target = "photoUrl", ignore = true)
+    @Mapping(target = "videoUrl", ignore = true)
+    @Mapping(target = "avatarStoredFileName", ignore = true)
+    @Mapping(target = "avatarOriginalFileName", ignore = true)
+    @Mapping(target = "avatarContentType", ignore = true)
     Person toEntity(CreatePersonDto dto);
 
     @Mapping(target = "familyId", source = "family.id")
     @Mapping(target = "linkedUserId", source = "linkedUser.id")
+    @Mapping(target = "avatarUrl", ignore = true)
     PersonDto toDto(Person person);
 }

@@ -43,13 +43,14 @@ public class FamilyAccessService {
     public FamilyAccessDto addFamilyAccess(Users currentUser, Long familyId, CreateFamilyAccessDto input) {
         FamilyAccess ownerAccess = getOwnerAccess(currentUser, familyId);
         Users user = resolveUser(currentUser, input);
+        FamilyAccessRole role = requireNonOwnerRole(input.getAccessRole());
 
         FamilyAccess access = familyAccessRepository.findByFamilyIdAndUserId(familyId, user.getId())
                 .orElseGet(FamilyAccess::new);
 
         access.setFamily(ownerAccess.getFamily());
         access.setUser(user);
-        access.setAccessRole(input.getAccessRole() == null ? FamilyAccessRole.VIEWER : input.getAccessRole());
+        access.setAccessRole(role);
         access.setStatus(AccessStatus.ACTIVE);
 
         return familyAccessMapper.toDto(familyAccessRepository.save(access));
@@ -59,6 +60,7 @@ public class FamilyAccessService {
     public FamilyAccessDto inviteFamilyAccess(Users currentUser, Long familyId, CreateFamilyAccessDto input) {
         FamilyAccess ownerAccess = getOwnerAccess(currentUser, familyId);
         Users user = resolveUser(currentUser, input);
+        FamilyAccessRole role = requireNonOwnerRole(input.getAccessRole());
 
         Optional<FamilyAccess> existingAccess = familyAccessRepository.findByFamilyIdAndUserId(familyId, user.getId());
         if (existingAccess.isPresent() && existingAccess.get().getStatus() == AccessStatus.ACTIVE) {
@@ -68,7 +70,7 @@ public class FamilyAccessService {
         FamilyAccess access = existingAccess.orElseGet(FamilyAccess::new);
         access.setFamily(ownerAccess.getFamily());
         access.setUser(user);
-        access.setAccessRole(input.getAccessRole() == null ? FamilyAccessRole.VIEWER : input.getAccessRole());
+        access.setAccessRole(role);
         access.setStatus(AccessStatus.PENDING);
 
         return familyAccessMapper.toDto(familyAccessRepository.save(access));
@@ -83,6 +85,24 @@ public class FamilyAccessService {
                 .stream()
                 .map(familyAccessMapper::toDto)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<FamilyAccessDto> getMyInvitationHistory(Users currentUser) {
+        return familyAccessRepository.findMyInvitationHistory(currentUser.getId())
+                .stream()
+                .map(familyAccessMapper::toDto)
+                .toList();
+    }
+
+    private FamilyAccessRole requireNonOwnerRole(FamilyAccessRole role) {
+        if (role == null) {
+            return FamilyAccessRole.VIEWER;
+        }
+        if (role == FamilyAccessRole.OWNER) {
+            throw new ForbiddenException("Oila egaligini bu yo'l bilan berib bo'lmaydi");
+        }
+        return role;
     }
 
     @Transactional
@@ -133,7 +153,7 @@ public class FamilyAccessService {
             throw new ForbiddenException("Owner o'z ruxsatini o'zgartira olmaydi");
         }
 
-        access.setAccessRole(input.getAccessRole());
+        access.setAccessRole(requireNonOwnerRole(input.getAccessRole()));
         access.setStatus(input.getStatus());
         return familyAccessMapper.toDto(familyAccessRepository.save(access));
     }

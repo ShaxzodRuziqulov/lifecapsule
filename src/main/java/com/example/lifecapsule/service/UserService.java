@@ -7,27 +7,49 @@
 package com.example.lifecapsule.service;
 
 import com.example.lifecapsule.entity.Users;
+import com.example.lifecapsule.entity.enumirated.AccessStatus;
+import com.example.lifecapsule.entity.enumirated.Role;
 import com.example.lifecapsule.entity.enumirated.Status;
+import com.example.lifecapsule.errors.ForbiddenException;
+import com.example.lifecapsule.errors.NotFoundException;
+import com.example.lifecapsule.repository.FamilyAccessRepository;
 import com.example.lifecapsule.repository.UserRepository;
+import com.example.lifecapsule.service.dto.AdminResetPasswordDto;
+import com.example.lifecapsule.service.dto.AdminUserSummaryDto;
+import com.example.lifecapsule.service.dto.PageFilter;
+import com.example.lifecapsule.service.dto.PageResponse;
 import com.example.lifecapsule.service.dto.UpdateUserDto;
 import com.example.lifecapsule.service.dto.UserDto;
+import com.example.lifecapsule.service.dto.UserSearchResultDto;
 import com.example.lifecapsule.service.dto.ChangePasswordDto;
 import com.example.lifecapsule.service.mapper.UserMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
+
 @Service
 public class UserService {
+    private static final Map<String, String> ADMIN_ALLOWED_SORTS = Map.of(
+            "id", "id",
+            "createdAt", "createdAt",
+            "username", "userName"
+    );
 
     private final UserMapper userMapper;
     private final UserRepository userRepository;
+    private final FamilyAccessRepository familyAccessRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserMapper userMapper, UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserService(UserMapper userMapper, UserRepository userRepository, FamilyAccessRepository familyAccessRepository, PasswordEncoder passwordEncoder) {
         this.userMapper = userMapper;
         this.userRepository = userRepository;
+        this.familyAccessRepository = familyAccessRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -69,6 +91,70 @@ public class UserService {
         }
         currentUser.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(currentUser);
+    }
+
+    /**
+     * Lets an ADMIN reset any user's forgotten password without knowing the old one -
+     * the project has no email/SMS infrastructure for a self-service "forgot password" flow,
+     * so the family's admin does this by hand instead.
+     */
+    @Transactional
+    public void adminResetPassword(Users currentUser, String username, AdminResetPasswordDto input) {
+        if (currentUser == null || currentUser.getRole() != Role.ADMIN) {
+            throw new ForbiddenException("Bu amalni faqat administrator bajara oladi");
+        }
+
+        Users target = userRepository.findByUserNameIgnoreCase(username)
+                .orElseThrow(() -> new NotFoundException("Bu nomdagi foydalanuvchi topilmadi"));
+
+        target.setPassword(passwordEncoder.encode(input.getNewPassword()));
+        userRepository.save(target);
+    }
+
+    /**
+     * Backs the "invite by username" search box - deliberately requires at least
+     * 2 characters and returns only a handful of matches so it can't be used to
+     * enumerate every account in the system.
+     */
+    @Transactional(readOnly = true)
+    public List<UserSearchResultDto> searchByUsername(Users currentUser, String query) {
+        String trimmed = query == null ? "" : query.trim();
+        if (trimmed.length() < 2) {
+            return List.of();
+        }
+        return userRepository.findTop8ByUserNameContainingIgnoreCaseOrderByUserNameAsc(trimmed).stream()
+                .filter(user -> !user.getId().equals(currentUser.getId()))
+                .map(user -> {
+                    UserSearchResultDto dto = new UserSearchResultDto();
+                    dto.setId(user.getId());
+                    dto.setUsername(user.getUserName());
+                    dto.setFirstName(user.getFirstName());
+                    dto.setLastName(user.getLastName());
+                    return dto;
+                })
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<AdminUserSummaryDto> getAllUsersForAdmin(Users currentUser, PageFilter filter) {
+        if (currentUser == null || currentUser.getRole() != Role.ADMIN) {
+            throw new ForbiddenException("Bu amalni faqat administrator bajara oladi");
+        }
+        Pageable pageable = filter.toPageable("createdAt", ADMIN_ALLOWED_SORTS);
+        Page<AdminUserSummaryDto> result = userRepository.findAll(pageable).map(user -> {
+            AdminUserSummaryDto dto = new AdminUserSummaryDto();
+            dto.setId(user.getId());
+            dto.setUsername(user.getUserName());
+            dto.setEmail(user.getEmail());
+            dto.setFirstName(user.getFirstName());
+            dto.setLastName(user.getLastName());
+            dto.setRole(user.getRole());
+            dto.setStatus(user.getStatus());
+            dto.setFamilyCount(familyAccessRepository.countByUserIdAndStatus(user.getId(), AccessStatus.ACTIVE));
+            dto.setCreatedAt(user.getCreatedAt());
+            return dto;
+        });
+        return new PageResponse<>(result);
     }
 
     @Transactional

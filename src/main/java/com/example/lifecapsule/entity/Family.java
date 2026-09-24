@@ -49,4 +49,13 @@ public class Family extends BaseEntity {
     @Column(nullable = false, length = 30)
     private FamilyVisibility visibility = FamilyVisibility.INVITE_ONLY;
 
+    @Column(length = 300)
+    private String coverStoredFileName;
+
+    @Column(length = 300)
+    private String coverOriginalFileName;
+
+    @Column(length = 150)
+    private String coverContentType;
+
 }
