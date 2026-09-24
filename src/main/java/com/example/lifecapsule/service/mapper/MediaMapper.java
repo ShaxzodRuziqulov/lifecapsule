@@ -10,5 +10,6 @@ public interface MediaMapper {
     @Mapping(target = "familyId", source = "family.id")
     @Mapping(target = "personId", source = "person.id")
     @Mapping(target = "url", ignore = true)
+    @Mapping(target = "taggedPersonIds", ignore = true)
     MediaDto toDto(Media media);
 }

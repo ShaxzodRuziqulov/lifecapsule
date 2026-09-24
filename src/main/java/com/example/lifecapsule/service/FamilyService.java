@@ -150,6 +150,7 @@ public class FamilyService {
         var media = mediaRepository.findAllByFamilyId(familyId);
         String coverPath = family.getCoverStoredFileName();
         relationshipRepository.deleteAllByFamilyId(familyId);
+        mediaRepository.clearTagsForFamily(familyId);
         personRepository.deleteAllByFamilyId(familyId);
         mediaRepository.deleteAllByFamilyId(familyId);
         familyAccessRepository.deleteAllByFamilyId(familyId);
