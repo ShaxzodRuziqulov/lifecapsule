@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -79,7 +80,7 @@ public class MediaService {
             return List.of();
         }
 
-        return mediaRepository.findAllByPersonIdOrderByCreatedAtAsc(personId)
+        return mediaRepository.findAllVisibleToPerson(familyId, personId)
                 .stream()
                 .map(this::toDto)
                 .toList();
@@ -92,7 +93,26 @@ public class MediaService {
                 .orElseThrow(() -> new NotFoundException("Fayl topilmadi"));
 
         media.setCaption(trimToNull(input.getCaption()));
+        media.setTaggedPersons(resolveTaggedPersons(familyId, personId, input.getTaggedPersonIds()));
         return toDto(mediaRepository.save(media));
+    }
+
+    private Set<Person> resolveTaggedPersons(Long familyId, Long ownerPersonId, List<Long> taggedPersonIds) {
+        if (taggedPersonIds == null || taggedPersonIds.isEmpty()) {
+            return new HashSet<>();
+        }
+        List<Long> distinctIds = taggedPersonIds.stream()
+                .filter(id -> !id.equals(ownerPersonId))
+                .distinct()
+                .toList();
+        if (distinctIds.isEmpty()) {
+            return new HashSet<>();
+        }
+        List<Person> people = personRepository.findAllByIdInAndFamilyId(distinctIds, familyId);
+        if (people.size() != distinctIds.size()) {
+            throw new IllegalArgumentException("Tanlangan odamlardan biri shu oilada topilmadi");
+        }
+        return new HashSet<>(people);
     }
 
     @Transactional
@@ -121,6 +141,7 @@ public class MediaService {
     private MediaDto toDto(Media media) {
         MediaDto dto = mediaMapper.toDto(media);
         dto.setUrl("/families/%d/persons/%d/media/%d/file".formatted(media.getFamily().getId(), media.getPerson().getId(), media.getId()));
+        dto.setTaggedPersonIds(media.getTaggedPersons().stream().map(Person::getId).toList());
         return dto;
     }
 

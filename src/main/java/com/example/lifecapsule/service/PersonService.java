@@ -135,9 +135,10 @@ public class PersonService {
     public void deletePerson(Users currentUser, Long familyId, Long personId) {
         getEditableAccess(currentUser, familyId);
         Person person = getPersonEntity(familyId, personId);
-        List<Media> media = mediaRepository.findAllByPersonIdOrderByCreatedAtAsc(personId);
+        List<Media> media = mediaRepository.findAllByPersonId(personId);
         String avatarPath = person.getAvatarStoredFileName();
         relationshipRepository.deleteAllByFamilyIdAndPersonId(familyId, personId);
+        mediaRepository.clearTagsForPerson(personId);
         mediaRepository.deleteAllByPersonId(personId);
         personRepository.delete(person);
         media.forEach(item -> storageService.delete(item.getStoredFileName()));

@@ -53,6 +53,8 @@ public interface PersonRepository extends JpaRepository<Person, Long> {
 
     Optional<Person> findByIdAndFamilyId(Long id, Long familyId);
 
+    List<Person> findAllByIdInAndFamilyId(List<Long> ids, Long familyId);
+
     Optional<Person> findByFamilyIdAndLinkedUserId(Long familyId, Long linkedUserId);
 
     @Modifying
