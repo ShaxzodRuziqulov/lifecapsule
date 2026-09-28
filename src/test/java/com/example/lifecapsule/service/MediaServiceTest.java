@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -120,6 +121,24 @@ class MediaServiceTest {
         ArgumentCaptor<Media> saved = ArgumentCaptor.forClass(Media.class);
         verify(mediaRepository).save(saved.capture());
         assertThat(saved.getValue().isVisibleToFamily()).isTrue();
+    }
+
+    @Test void listForFamilyFiltersOutMaskedPersonsAndSortsNewestFirst() {
+        Media older = media(1L, 30L);
+        older.setCreatedAt(LocalDateTime.of(2024, 1, 1, 0, 0));
+        Media newer = media(2L, 40L);
+        newer.setCreatedAt(LocalDateTime.of(2024, 6, 1, 0, 0));
+        Media masked = media(3L, 50L);
+        masked.setCreatedAt(LocalDateTime.of(2024, 3, 1, 0, 0));
+        stubToDto();
+        when(mediaRepository.findAllByFamilyId(10L)).thenReturn(List.of(older, newer, masked));
+        when(personService.canViewFullProfile(editor, 10L, 30L)).thenReturn(true);
+        when(personService.canViewFullProfile(editor, 10L, 40L)).thenReturn(true);
+        when(personService.canViewFullProfile(editor, 10L, 50L)).thenReturn(false);
+
+        List<MediaDto> result = mediaService.listForFamily(editor, 10L);
+
+        assertThat(result).extracting(MediaDto::getId).containsExactly(2L, 1L);
     }
 
     @Test void viewerCannotTagPeople() {

@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -82,6 +83,22 @@ public class MediaService {
 
         return mediaRepository.findAllVisibleToPerson(familyId, personId)
                 .stream()
+                .map(this::toDto)
+                .toList();
+    }
+
+    /**
+     * Every media item in the family the current user is allowed to see - i.e. everything
+     * except items owned by a person whose profile is masked for this viewer (mahram privacy).
+     * Powers the family-wide Media page, as opposed to {@link #list} which is scoped to one
+     * person's own gallery (owner + tagged + visibleToFamily).
+     */
+    @Transactional(readOnly = true)
+    public List<MediaDto> listForFamily(Users currentUser, Long familyId) {
+        getReadableAccess(currentUser, familyId);
+        return mediaRepository.findAllByFamilyId(familyId).stream()
+                .filter(media -> personService.canViewFullProfile(currentUser, familyId, media.getPerson().getId()))
+                .sorted(Comparator.comparing(Media::getCreatedAt).reversed())
                 .map(this::toDto)
                 .toList();
     }
