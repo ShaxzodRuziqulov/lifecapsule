@@ -109,6 +109,19 @@ class MediaServiceTest {
         assertThat(result.get(1).getTaggedPersonIds()).containsExactly(30L);
     }
 
+    @Test void setsVisibleToFamily() {
+        stubExistingMedia();
+        UpdateMediaDto input = update("Piknik");
+        input.setVisibleToFamily(true);
+
+        MediaDto result = mediaService.updateCaption(editor, 10L, 30L, 1L, input);
+
+        assertThat(result.isVisibleToFamily()).isTrue();
+        ArgumentCaptor<Media> saved = ArgumentCaptor.forClass(Media.class);
+        verify(mediaRepository).save(saved.capture());
+        assertThat(saved.getValue().isVisibleToFamily()).isTrue();
+    }
+
     @Test void viewerCannotTagPeople() {
         FamilyAccess viewerAccess = access(FamilyAccessRole.VIEWER);
         when(familyAccessRepository.findByFamilyIdAndUserId(10L, 2L)).thenReturn(Optional.of(viewerAccess));
@@ -130,6 +143,7 @@ class MediaServiceTest {
             MediaDto dto = new MediaDto();
             dto.setId(source.getId());
             dto.setCaption(source.getCaption());
+            dto.setVisibleToFamily(source.isVisibleToFamily());
             return dto;
         });
     }

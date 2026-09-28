@@ -94,6 +94,7 @@ public class MediaService {
 
         media.setCaption(trimToNull(input.getCaption()));
         media.setTaggedPersons(resolveTaggedPersons(familyId, personId, input.getTaggedPersonIds()));
+        media.setVisibleToFamily(input.isVisibleToFamily());
         return toDto(mediaRepository.save(media));
     }
 

@@ -77,4 +77,11 @@ public class Media extends BaseEntity {
 
     @Column(length = 300)
     private String caption;
+
+    /**
+     * When true, every family member sees this item in their own gallery, not just the
+     * owner and {@link #taggedPersons}. A shortcut for "tag everyone" without picking each person.
+     */
+    @Column(nullable = false, columnDefinition = "boolean not null default false")
+    private boolean visibleToFamily;
 }

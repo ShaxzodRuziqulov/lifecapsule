@@ -23,4 +23,5 @@ public class MediaDto {
     private String url;
     private LocalDateTime createdAt;
     private List<Long> taggedPersonIds;
+    private boolean visibleToFamily;
 }
