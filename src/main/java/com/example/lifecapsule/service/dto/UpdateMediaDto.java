@@ -19,4 +19,6 @@ public class UpdateMediaDto {
      * the frontend sends the complete list on every call, not a delta.
      */
     private List<Long> taggedPersonIds;
+
+    private boolean visibleToFamily;
 }

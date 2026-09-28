@@ -16,7 +16,7 @@ public interface MediaRepository extends JpaRepository<Media, Long> {
             select distinct media from Media media
             left join media.taggedPersons tagged
             where media.family.id = :familyId
-              and (media.person.id = :personId or tagged.id = :personId)
+              and (media.person.id = :personId or tagged.id = :personId or media.visibleToFamily = true)
             order by media.createdAt asc
             """)
     List<Media> findAllVisibleToPerson(@Param("familyId") Long familyId, @Param("personId") Long personId);
