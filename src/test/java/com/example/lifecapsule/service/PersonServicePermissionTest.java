@@ -249,6 +249,30 @@ class PersonServicePermissionTest {
     }
 
     @Test
+    void cannotTurnAMotherIntoASecondFather() {
+        Users editor = user(2L);
+        Family family = family(10L);
+        Person father = person(family, 20L, Gender.MALE);
+        Person mother = person(family, 21L, Gender.FEMALE);
+        Person child = person(family, 30L, Gender.MALE);
+        when(familyAccessRepository.findByFamilyIdAndUserId(10L, 2L))
+                .thenReturn(Optional.of(access(family, editor, FamilyAccessRole.EDITOR)));
+        when(personRepository.findByIdAndFamilyId(21L, 10L)).thenReturn(Optional.of(mother));
+        when(relationshipRepository.findAllByFamilyIdOrderByCreatedAtAsc(10L)).thenReturn(List.of(
+                relationship(family, father, child, RelationshipType.PARENT),
+                relationship(family, mother, child, RelationshipType.PARENT)
+        ));
+        com.example.lifecapsule.service.dto.PersonUpdateDto update = new com.example.lifecapsule.service.dto.PersonUpdateDto();
+        update.setFirstName("Malika");
+        update.setGender(Gender.MALE);
+
+        assertThatThrownBy(() -> personService.updatePerson(editor, 10L, 21L, update))
+                .isInstanceOf(com.example.lifecapsule.errors.ConflictException.class)
+                .hasMessageContaining("otasi");
+        verify(personRepository, never()).save(any());
+    }
+
+    @Test
     void viewerSearchUsesBasicPersonFieldsOnly() {
         Users viewer = user(3L);
         Family family = family(10L);

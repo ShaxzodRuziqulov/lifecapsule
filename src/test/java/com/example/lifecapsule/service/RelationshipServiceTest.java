@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import static com.example.lifecapsule.entity.enumirated.RelationshipType.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -112,6 +113,39 @@ class RelationshipServiceTest {
         assertThrows(ConflictException.class, () -> service.updateRelationship(user, 10L, 3L, update(2, 1, PARTNER)));
     }
 
+    @Test void rejectsAThirdParent() {
+        graph(edge(1, 1, 3, PARENT), edge(2, 2, 3, PARENT));
+        allowPeople();
+        ConflictException error = assertThrows(ConflictException.class, () -> create(4, 3, PARENT));
+        assertTrue(error.getMessage().contains("ikkalasi"));
+        verify(relationships, never()).save(any());
+    }
+
+    @Test void rejectsASecondFatherButAllowsTheMother() {
+        Relationship father = edge(1, 1, 3, PARENT);
+        father.getFromPerson().setGender(Gender.MALE);
+        graph(father);
+        allowPeople(Map.of(4L, Gender.MALE, 5L, Gender.FEMALE));
+        when(mapper.toEntity(any())).thenReturn(new Relationship());
+        ConflictException error = assertThrows(ConflictException.class, () -> create(4, 3, PARENT));
+        assertTrue(error.getMessage().contains("otasi"));
+        create(5, 3, PARENT);
+        verify(relationships).save(any());
+    }
+
+    @Test void adoptiveParentsHaveTheirOwnSlots() {
+        graph(edge(1, 1, 3, PARENT), edge(2, 2, 3, PARENT));
+        allowSave();
+        create(4, 3, ADOPTIVE_PARENT);
+        verify(relationships).save(any());
+    }
+
+    @Test void rejectsTheSamePersonAsBothKindsOfParent() {
+        graph(edge(1, 1, 3, PARENT));
+        assertThrows(ConflictException.class, () -> create(1, 3, ADOPTIVE_PARENT));
+        verify(relationships, never()).save(any());
+    }
+
     @Test void viewerCannotWriteOrLockFamily() {
         access.setAccessRole(FamilyAccessRole.VIEWER);
         assertThrows(ForbiddenException.class, () -> create(1, 2, PARENT));
@@ -120,7 +154,6 @@ class RelationshipServiceTest {
 
     @Test void rejectsPersonOutsideFamily() {
         graph();
-        when(mapper.toEntity(any())).thenReturn(new Relationship());
         assertThrows(NotFoundException.class, () -> create(1, 2, PARENT));
         verify(relationships, never()).save(any());
     }
@@ -129,8 +162,14 @@ class RelationshipServiceTest {
         when(relationships.findAllByFamilyIdOrderByCreatedAtAsc(10L)).thenReturn(List.of(edges));
     }
     private void allowPeople() {
-        when(people.findByIdAndFamilyId(anyLong(), eq(10L)))
-                .thenAnswer(call -> Optional.of(person(call.getArgument(0))));
+        allowPeople(Map.of());
+    }
+    private void allowPeople(Map<Long, Gender> genders) {
+        when(people.findByIdAndFamilyId(anyLong(), eq(10L))).thenAnswer(call -> {
+            Person p = person(call.getArgument(0));
+            p.setGender(genders.get(p.getId()));
+            return Optional.of(p);
+        });
     }
     private void allowSave() {
         allowPeople();

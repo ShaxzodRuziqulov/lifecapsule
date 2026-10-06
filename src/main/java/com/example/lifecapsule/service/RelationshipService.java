@@ -21,12 +21,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Map;
+import com.example.lifecapsule.entity.enumirated.Gender;
+import com.example.lifecapsule.entity.enumirated.RelationshipType;
+
 import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import com.example.lifecapsule.entity.enumirated.RelationshipType;
 
 @Service
 @RequiredArgsConstructor
@@ -171,6 +174,35 @@ public class RelationshipService {
                 throw new ConflictException("Bu bog'lanishni qo'shib bo'lmaydi: avlodni o'z ajdodiga ota-ona qilib belgilayapsiz.");
             }
             pending.addAll(children.getOrDefault(personId, Set.of()));
+        }
+        validateParentSlots(relationships, familyId, fromPersonId, toPersonId, type);
+    }
+
+    /**
+     * A child has at most two parents of each kind (biological / adoptive), at most one of them a
+     * man and one a woman, and the same person cannot be both kinds of parent to one child.
+     */
+    private void validateParentSlots(List<Relationship> relationships, Long familyId, Long parentId, Long childId, RelationshipType type) {
+        boolean otherKind = relationships.stream().anyMatch(relationship -> relationship.getType() != type
+                && relationship.getType() != RelationshipType.PARTNER
+                && relationship.getFromPerson().getId().equals(parentId)
+                && relationship.getToPerson().getId().equals(childId));
+        if (otherKind) {
+            throw new ConflictException("Bu odam shu farzandga allaqachon boshqa turdagi ota-ona sifatida bog'langan");
+        }
+        List<Person> existingParents = relationships.stream()
+                .filter(relationship -> relationship.getType() == type && relationship.getToPerson().getId().equals(childId))
+                .map(Relationship::getFromPerson)
+                .toList();
+        String child = getPersonEntity(familyId, childId).getFirstName();
+        String kind = type == RelationshipType.ADOPTIVE_PARENT ? "asrab olgan " : "";
+        if (existingParents.size() >= 2) {
+            throw new ConflictException(child + "ning " + kind + "ota-onasi (ikkalasi ham) allaqachon kiritilgan");
+        }
+        Gender gender = getPersonEntity(familyId, parentId).getGender();
+        if ((gender == Gender.MALE || gender == Gender.FEMALE)
+                && existingParents.stream().anyMatch(parent -> parent.getGender() == gender)) {
+            throw new ConflictException(child + "ning " + kind + (gender == Gender.MALE ? "otasi" : "onasi") + " allaqachon kiritilgan");
         }
     }
 

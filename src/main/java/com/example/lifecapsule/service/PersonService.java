@@ -2,6 +2,7 @@ package com.example.lifecapsule.service;
 
 import com.example.lifecapsule.entity.*;
 import com.example.lifecapsule.entity.enumirated.*;
+import com.example.lifecapsule.errors.ConflictException;
 import com.example.lifecapsule.errors.NotFoundException;
 import com.example.lifecapsule.repository.*;
 import com.example.lifecapsule.service.dto.*;
@@ -73,6 +74,9 @@ public class PersonService {
             throw new IllegalArgumentException("Vafot etgan sana tug'ilgan sanadan oldin bo'lishi mumkin emas");
         }
 
+        if (personDto.getGender() != person.getGender()) {
+            validateGenderChange(familyId, person, personDto.getGender());
+        }
         person.setFirstName(personDto.getFirstName().trim());
         person.setLastName(trimToNull(personDto.getLastName()));
         person.setMaidenName(trimToNull(personDto.getMaidenName()));
@@ -192,6 +196,24 @@ public class PersonService {
         person.setAvatarContentType(null);
         personRepository.save(person);
         storageService.delete(path);
+    }
+
+    /** Changing a parent's gender must not give one of their children two fathers or two mothers. */
+    private void validateGenderChange(Long familyId, Person person, Gender newGender) {
+        if (newGender != Gender.MALE && newGender != Gender.FEMALE) return;
+        List<Relationship> relationships = relationshipRepository.findAllByFamilyIdOrderByCreatedAtAsc(familyId);
+        for (Relationship asParent : relationships) {
+            if (asParent.getType() == RelationshipType.PARTNER || !asParent.getFromPerson().getId().equals(person.getId())) continue;
+            Person child = asParent.getToPerson();
+            boolean clash = relationships.stream().anyMatch(other -> other.getType() == asParent.getType()
+                    && other.getToPerson().getId().equals(child.getId())
+                    && !other.getFromPerson().getId().equals(person.getId())
+                    && other.getFromPerson().getGender() == newGender);
+            if (clash) {
+                throw new ConflictException(child.getFirstName() + "ning " + (newGender == Gender.MALE ? "otasi" : "onasi")
+                        + " allaqachon kiritilgan, shuning uchun jinsni o'zgartirib bo'lmaydi");
+            }
+        }
     }
 
     private Person getPersonEntity(Long familyId, Long personId) {
