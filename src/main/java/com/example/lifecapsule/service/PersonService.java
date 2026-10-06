@@ -2,7 +2,6 @@ package com.example.lifecapsule.service;
 
 import com.example.lifecapsule.entity.*;
 import com.example.lifecapsule.entity.enumirated.*;
-import com.example.lifecapsule.errors.ForbiddenException;
 import com.example.lifecapsule.errors.NotFoundException;
 import com.example.lifecapsule.repository.*;
 import com.example.lifecapsule.service.dto.*;
@@ -31,8 +30,7 @@ public class PersonService {
 
     private final PersonRepository personRepository;
     private final RelationshipRepository relationshipRepository;
-    private final FamilyAccessRepository familyAccessRepository;
-    private final FamilyRepository familyRepository;
+    private final FamilyAuthorization authorization;
     private final UserRepository userRepository;
     private final PersonMapper personMapper;
     private final MediaRepository mediaRepository;
@@ -40,7 +38,7 @@ public class PersonService {
 
     @Transactional
     public PersonDto createPerson(Users currentUser, Long familyId, CreatePersonDto input) {
-        FamilyAccess access = getEditableAccess(currentUser, familyId);
+        FamilyAccess access = authorization.editable(currentUser, familyId);
 
         if (input.getBirthDate() != null
                 && input.getDeathDate() != null
@@ -66,7 +64,7 @@ public class PersonService {
             throw new IllegalArgumentException("personId cannot be null");
         }
 
-        getEditableAccess(currentUser, familyId);
+        authorization.editable(currentUser, familyId);
         Person person = getPersonEntity(familyId, personId);
 
         if (personDto.getBirthDate() != null
@@ -101,7 +99,7 @@ public class PersonService {
             Long familyId,
             PageFilter filter
     ) {
-        FamilyAccess access = getReadableAccess(currentUser, familyId);
+        FamilyAccess access = authorization.readable(currentUser, familyId);
         PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, access);
         Pageable pageable = filter.toPageable(DEFAULT_SORT, ALLOWED_SORTS);
 
@@ -114,7 +112,7 @@ public class PersonService {
 
     @Transactional(readOnly = true)
     public PersonDto getPerson(Users currentUser, Long familyId, Long personId) {
-        FamilyAccess access = getReadableAccess(currentUser, familyId);
+        FamilyAccess access = authorization.readable(currentUser, familyId);
         PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, access);
         return toDto(getPersonEntity(familyId, personId), privacyContext);
     }
@@ -125,15 +123,28 @@ public class PersonService {
      */
     @Transactional(readOnly = true)
     public boolean canViewFullProfile(Users currentUser, Long familyId, Long personId) {
-        FamilyAccess access = getReadableAccess(currentUser, familyId);
+        FamilyAccess access = authorization.readable(currentUser, familyId);
         Person person = getPersonEntity(familyId, personId);
         PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, access);
         return !shouldMaskSensitiveProfile(person, privacyContext);
     }
 
+    /** Ids of everyone in the family whose profile (and media) is masked for currentUser. */
+    @Transactional(readOnly = true)
+    public Set<Long> maskedPersonIds(Users currentUser, Long familyId) {
+        FamilyAccess access = authorization.readable(currentUser, familyId);
+        if (access.getAccessRole() != FamilyAccessRole.VIEWER) {
+            return Set.of();
+        }
+        PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, access);
+        Set<Long> masked = new HashSet<>(personRepository.findIdsByFamilyIdAndGender(familyId, Gender.FEMALE));
+        masked.removeAll(privacyContext.visibleSensitivePersonIds());
+        return masked;
+    }
+
     @Transactional
     public void deletePerson(Users currentUser, Long familyId, Long personId) {
-        getEditableAccess(currentUser, familyId);
+        authorization.editable(currentUser, familyId);
         Person person = getPersonEntity(familyId, personId);
         List<Media> media = mediaRepository.findAllByPersonId(personId);
         String avatarPath = person.getAvatarStoredFileName();
@@ -147,7 +158,7 @@ public class PersonService {
 
     @Transactional
     public PersonDto uploadAvatar(Users currentUser, Long familyId, Long personId, MultipartFile file) {
-        getEditableAccess(currentUser, familyId);
+        authorization.editable(currentUser, familyId);
         Person person = getPersonEntity(familyId, personId);
         if (file == null || file.isEmpty()) throw new IllegalArgumentException("Rasm tanlanmagan");
         if (file.getSize() > MAX_AVATAR_FILE_SIZE) throw new IllegalArgumentException("Profil rasmi 10 MB dan katta bo'lmasligi kerak");
@@ -172,7 +183,7 @@ public class PersonService {
 
     @Transactional
     public void deleteAvatar(Users currentUser, Long familyId, Long personId) {
-        getEditableAccess(currentUser, familyId);
+        authorization.editable(currentUser, familyId);
         Person person = getPersonEntity(familyId, personId);
         String path = person.getAvatarStoredFileName();
         if (path == null) return;
@@ -294,44 +305,6 @@ public class PersonService {
         dto.setLinkedUserId(null);
     }
 
-    private FamilyAccess getReadableAccess(Users currentUser, Long familyId) {
-        if (isAdmin(currentUser)) {
-            return adminAccess(currentUser, familyId);
-        }
-
-        FamilyAccess access = familyAccessRepository.findByFamilyIdAndUserId(familyId, currentUser.getId())
-                .orElseThrow(() -> new NotFoundException("Oila topilmadi yoki sizda ruxsat yo'q"));
-
-        if (access.getStatus() != AccessStatus.ACTIVE) {
-            throw new NotFoundException("Oila topilmadi yoki sizda ruxsat yo'q");
-        }
-        return access;
-    }
-
-    private FamilyAccess adminAccess(Users currentUser, Long familyId) {
-        Family family = familyRepository.findById(familyId)
-                .orElseThrow(() -> new NotFoundException("Oila topilmadi"));
-        FamilyAccess access = new FamilyAccess();
-        access.setFamily(family);
-        access.setUser(currentUser);
-        access.setAccessRole(FamilyAccessRole.OWNER);
-        access.setStatus(AccessStatus.ACTIVE);
-        return access;
-    }
-
-    private boolean isAdmin(Users currentUser) {
-        return currentUser != null && currentUser.getRole() == Role.ADMIN;
-    }
-
-    private FamilyAccess getEditableAccess(Users currentUser, Long familyId) {
-        FamilyAccess access = getReadableAccess(currentUser, familyId);
-
-        if (access.getStatus() != AccessStatus.ACTIVE || access.getAccessRole() == FamilyAccessRole.VIEWER) {
-            throw new ForbiddenException("Sizda bu oilaga odam qo'shish huquqi yo'q");
-        }
-        return access;
-    }
-
     private String trimToNull(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -341,7 +314,9 @@ public class PersonService {
 
     private PersonDto applyAvatarUrl(PersonDto dto, Person person) {
         if (person.getAvatarStoredFileName() != null) {
-            dto.setAvatarUrl("/families/%d/persons/%d/avatar".formatted(person.getFamily().getId(), person.getId()));
+            // The version changes with every upload so clients can cache the image by URL.
+            dto.setAvatarUrl("/families/%d/persons/%d/avatar?v=%s".formatted(
+                    person.getFamily().getId(), person.getId(), Integer.toHexString(person.getAvatarStoredFileName().hashCode())));
         }
         return dto;
     }

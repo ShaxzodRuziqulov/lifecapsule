@@ -35,16 +35,6 @@ public class FamilyAccessResource {
         return ResponseEntity.ok().body(result);
     }
 
-    @PostMapping
-    public ResponseEntity<FamilyAccessDto> addFamilyAccess(
-            @AuthenticationPrincipal Users currentUser,
-            @PathVariable Long familyId,
-            @Valid @RequestBody CreateFamilyAccessDto input
-    ) {
-        FamilyAccessDto result = familyAccessService.addFamilyAccess(currentUser, familyId, input);
-        return ResponseEntity.ok().body(result);
-    }
-
     @PostMapping("/invitations")
     public ResponseEntity<FamilyAccessDto> inviteFamilyAccess(
             @AuthenticationPrincipal Users currentUser,

@@ -1,6 +1,7 @@
 package com.example.lifecapsule.repository;
 
 import com.example.lifecapsule.entity.Person;
+import com.example.lifecapsule.entity.enumirated.Gender;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -56,6 +57,9 @@ public interface PersonRepository extends JpaRepository<Person, Long> {
     List<Person> findAllByIdInAndFamilyId(List<Long> ids, Long familyId);
 
     Optional<Person> findByFamilyIdAndLinkedUserId(Long familyId, Long linkedUserId);
+
+    @Query("select person.id from Person person where person.family.id = :familyId and person.gender = :gender")
+    List<Long> findIdsByFamilyIdAndGender(@Param("familyId") Long familyId, @Param("gender") Gender gender);
 
     @Modifying
     @Query("delete from Person person where person.family.id = :familyId")

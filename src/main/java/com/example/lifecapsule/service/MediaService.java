@@ -1,18 +1,11 @@
 package com.example.lifecapsule.service;
 
-import com.example.lifecapsule.entity.Family;
 import com.example.lifecapsule.entity.FamilyAccess;
 import com.example.lifecapsule.entity.Media;
 import com.example.lifecapsule.entity.Person;
 import com.example.lifecapsule.entity.Users;
-import com.example.lifecapsule.entity.enumirated.AccessStatus;
-import com.example.lifecapsule.entity.enumirated.FamilyAccessRole;
 import com.example.lifecapsule.entity.enumirated.MediaType;
-import com.example.lifecapsule.entity.enumirated.Role;
-import com.example.lifecapsule.errors.ForbiddenException;
 import com.example.lifecapsule.errors.NotFoundException;
-import com.example.lifecapsule.repository.FamilyAccessRepository;
-import com.example.lifecapsule.repository.FamilyRepository;
 import com.example.lifecapsule.repository.MediaRepository;
 import com.example.lifecapsule.repository.PersonRepository;
 import com.example.lifecapsule.service.dto.MediaDto;
@@ -38,15 +31,14 @@ public class MediaService {
 
     private final MediaRepository mediaRepository;
     private final PersonRepository personRepository;
-    private final FamilyAccessRepository familyAccessRepository;
-    private final FamilyRepository familyRepository;
+    private final FamilyAuthorization authorization;
     private final MediaMapper mediaMapper;
     private final StorageService storageService;
     private final PersonService personService;
 
     @Transactional
     public MediaDto upload(Users currentUser, Long familyId, Long personId, String caption, MultipartFile file) {
-        FamilyAccess access = getEditableAccess(currentUser, familyId);
+        FamilyAccess access = authorization.editable(currentUser, familyId);
         Person person = getPersonEntity(familyId, personId);
 
         if (file == null || file.isEmpty()) {
@@ -74,15 +66,19 @@ public class MediaService {
 
     @Transactional(readOnly = true)
     public List<MediaDto> list(Users currentUser, Long familyId, Long personId) {
-        getReadableAccess(currentUser, familyId);
+        authorization.readable(currentUser, familyId);
         getPersonEntity(familyId, personId);
 
-        if (!personService.canViewFullProfile(currentUser, familyId, personId)) {
+        Set<Long> masked = personService.maskedPersonIds(currentUser, familyId);
+        if (masked.contains(personId)) {
             return List.of();
         }
 
+        // The gallery also pulls in tagged and family-wide items owned by other people,
+        // so each item is checked against its owner's privacy, not just this person's.
         return mediaRepository.findAllVisibleToPerson(familyId, personId)
                 .stream()
+                .filter(media -> !masked.contains(media.getPerson().getId()))
                 .map(this::toDto)
                 .toList();
     }
@@ -90,14 +86,13 @@ public class MediaService {
     /**
      * Every media item in the family the current user is allowed to see - i.e. everything
      * except items owned by a person whose profile is masked for this viewer (mahram privacy).
-     * Powers the family-wide Media page, as opposed to {@link #list} which is scoped to one
-     * person's own gallery (owner + tagged + visibleToFamily).
      */
     @Transactional(readOnly = true)
     public List<MediaDto> listForFamily(Users currentUser, Long familyId) {
-        getReadableAccess(currentUser, familyId);
+        authorization.readable(currentUser, familyId);
+        Set<Long> masked = personService.maskedPersonIds(currentUser, familyId);
         return mediaRepository.findAllByFamilyId(familyId).stream()
-                .filter(media -> personService.canViewFullProfile(currentUser, familyId, media.getPerson().getId()))
+                .filter(media -> !masked.contains(media.getPerson().getId()))
                 .sorted(Comparator.comparing(Media::getCreatedAt).reversed())
                 .map(this::toDto)
                 .toList();
@@ -105,7 +100,7 @@ public class MediaService {
 
     @Transactional
     public MediaDto updateCaption(Users currentUser, Long familyId, Long personId, Long mediaId, UpdateMediaDto input) {
-        getEditableAccess(currentUser, familyId);
+        authorization.editable(currentUser, familyId);
         Media media = mediaRepository.findByIdAndPersonIdAndFamilyId(mediaId, personId, familyId)
                 .orElseThrow(() -> new NotFoundException("Fayl topilmadi"));
 
@@ -135,17 +130,16 @@ public class MediaService {
 
     @Transactional
     public void delete(Users currentUser, Long familyId, Long personId, Long mediaId) {
-        getEditableAccess(currentUser, familyId);
+        authorization.editable(currentUser, familyId);
         Media media = mediaRepository.findByIdAndPersonIdAndFamilyId(mediaId, personId, familyId)
                 .orElseThrow(() -> new NotFoundException("Fayl topilmadi"));
 
         mediaRepository.delete(media);
-        storageService.delete(media.getStoredFileName());
-    }
+        storageService.delete(media.getStoredFileName());    }
 
     @Transactional(readOnly = true)
     public MediaFile loadFile(Users currentUser, Long familyId, Long personId, Long mediaId) {
-        getReadableAccess(currentUser, familyId);
+        authorization.readable(currentUser, familyId);
         if (!personService.canViewFullProfile(currentUser, familyId, personId)) {
             throw new NotFoundException("Fayl topilmadi");
         }
@@ -176,41 +170,6 @@ public class MediaService {
     private Person getPersonEntity(Long familyId, Long personId) {
         return personRepository.findByIdAndFamilyId(personId, familyId)
                 .orElseThrow(() -> new NotFoundException("Odam topilmadi"));
-    }
-
-    private FamilyAccess getReadableAccess(Users currentUser, Long familyId) {
-        if (isAdmin(currentUser)) {
-            return adminAccess(currentUser, familyId);
-        }
-        FamilyAccess access = familyAccessRepository.findByFamilyIdAndUserId(familyId, currentUser.getId())
-                .orElseThrow(() -> new NotFoundException("Oila topilmadi yoki sizda ruxsat yo'q"));
-        if (access.getStatus() != AccessStatus.ACTIVE) {
-            throw new NotFoundException("Oila topilmadi yoki sizda ruxsat yo'q");
-        }
-        return access;
-    }
-
-    private FamilyAccess getEditableAccess(Users currentUser, Long familyId) {
-        FamilyAccess access = getReadableAccess(currentUser, familyId);
-        if (access.getAccessRole() == FamilyAccessRole.VIEWER) {
-            throw new ForbiddenException("Sizda bu odamga fayl qo'shish huquqi yo'q");
-        }
-        return access;
-    }
-
-    private FamilyAccess adminAccess(Users currentUser, Long familyId) {
-        Family family = familyRepository.findById(familyId)
-                .orElseThrow(() -> new NotFoundException("Oila topilmadi"));
-        FamilyAccess access = new FamilyAccess();
-        access.setFamily(family);
-        access.setUser(currentUser);
-        access.setAccessRole(FamilyAccessRole.OWNER);
-        access.setStatus(AccessStatus.ACTIVE);
-        return access;
-    }
-
-    private boolean isAdmin(Users currentUser) {
-        return currentUser != null && currentUser.getRole() == Role.ADMIN;
     }
 
     private String trimToNull(String value) {

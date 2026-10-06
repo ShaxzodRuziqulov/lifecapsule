@@ -1,6 +1,7 @@
 package com.example.lifecapsule.web.rest;
 
 import com.example.lifecapsule.entity.Users;
+import com.example.lifecapsule.repository.UserRepository;
 import com.example.lifecapsule.service.AuthenticationService;
 import com.example.lifecapsule.service.JwtService;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,9 @@ class AuthenticationResourceTest {
 
     @MockitoBean
     private JwtService jwtService;
+
+    @MockitoBean
+    private UserRepository userRepository;
 
     @Test
     void signupReturnsValidationErrors() throws Exception {
@@ -79,8 +83,8 @@ class AuthenticationResourceTest {
     @Test
     void refreshReturnsNewAccessAndRefreshTokens() throws Exception {
         Users user = user();
-        when(jwtService.extractUserName("old-refresh-token")).thenReturn("lifecapsule_user");
-        when(authenticationService.findByUsername("lifecapsule_user")).thenReturn(user);
+        when(jwtService.extractUserId("old-refresh-token")).thenReturn(1L);
+        when(authenticationService.findById(1L)).thenReturn(user);
         when(jwtService.isRefreshTokenValid("old-refresh-token", user)).thenReturn(true);
         when(jwtService.generateToken(user)).thenReturn("new-access-token");
         when(jwtService.generateRefreshToken(user)).thenReturn("new-refresh-token");

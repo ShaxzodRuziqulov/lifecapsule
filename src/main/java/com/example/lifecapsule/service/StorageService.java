@@ -1,9 +1,13 @@
 package com.example.lifecapsule.service;
 
+import com.example.lifecapsule.errors.NotFoundException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -14,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
 
+@Slf4j
 @Service
 public class StorageService {
     private final Path storageRoot;
@@ -28,85 +33,75 @@ public class StorageService {
     }
 
     public String store(Long familyId, Long personId, MultipartFile file) {
-        String extension = extensionOf(file.getOriginalFilename());
-        String relativePath = familyId + "/" + personId + "/" + UUID.randomUUID() + extension;
-        Path target = storageRoot.resolve(relativePath).normalize();
-
-        if (!target.startsWith(storageRoot)) {
-            throw new IllegalArgumentException("Fayl nomi noto'g'ri");
-        }
-
-        try {
-            Files.createDirectories(target.getParent());
-            file.transferTo(target);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Fayl saqlanmadi", e);
-        }
-
-        return relativePath;
+        return storeUnder(familyId + "/" + personId, file);
     }
 
     public String storeFamilyCover(Long familyId, MultipartFile file) {
-        String extension = extensionOf(file.getOriginalFilename());
-        String relativePath = familyId + "/cover/" + UUID.randomUUID() + extension;
-        Path target = storageRoot.resolve(relativePath).normalize();
-
-        if (!target.startsWith(storageRoot)) {
-            throw new IllegalArgumentException("Fayl nomi noto'g'ri");
-        }
-
-        try {
-            Files.createDirectories(target.getParent());
-            file.transferTo(target);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Fayl saqlanmadi", e);
-        }
-
-        return relativePath;
+        return storeUnder(familyId + "/cover", file);
     }
 
     public String storePersonAvatar(Long familyId, Long personId, MultipartFile file) {
-        String extension = extensionOf(file.getOriginalFilename());
-        String relativePath = familyId + "/" + personId + "/avatar/" + UUID.randomUUID() + extension;
-        Path target = storageRoot.resolve(relativePath).normalize();
-
-        if (!target.startsWith(storageRoot)) {
-            throw new IllegalArgumentException("Fayl nomi noto'g'ri");
-        }
-
-        try {
-            Files.createDirectories(target.getParent());
-            file.transferTo(target);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Fayl saqlanmadi", e);
-        }
-
-        return relativePath;
+        return storeUnder(familyId + "/" + personId + "/avatar", file);
     }
 
     public Resource loadAsResource(String relativePath) {
         try {
-            Path file = resolveExisting(relativePath);
-            Resource resource = new UrlResource(file.toUri());
+            Resource resource = new UrlResource(resolve(relativePath).toUri());
             if (!resource.exists() || !resource.isReadable()) {
-                throw new IllegalStateException("Fayl topilmadi: " + relativePath);
+                throw new NotFoundException("Fayl topilmadi");
             }
             return resource;
         } catch (MalformedURLException e) {
-            throw new IllegalStateException("Fayl topilmadi: " + relativePath, e);
+            throw new NotFoundException("Fayl topilmadi");
         }
     }
 
+    /**
+     * Deletes the file only once the surrounding transaction commits, so a rolled-back delete
+     * never leaves a database row pointing at a file that is already gone.
+     */
     public void delete(String relativePath) {
-        try {
-            Path file = resolveExisting(relativePath);
-            Files.deleteIfExists(file);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Fayl o'chirilmadi", e);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    deleteNow(relativePath);
+                }
+            });
+        } else {
+            deleteNow(relativePath);
         }
     }
 
-    private Path resolveExisting(String relativePath) {
+    private void deleteNow(String relativePath) {
+        try {
+            Files.deleteIfExists(resolve(relativePath));
+        } catch (IOException e) {
+            log.warn("Could not delete stored file {}", relativePath, e);
+        }
+    }
+
+    private String storeUnder(String directory, MultipartFile file) {
+        String relativePath = directory + "/" + UUID.randomUUID() + extensionOf(file.getOriginalFilename());
+        Path target = resolve(relativePath);
+        try {
+            Files.createDirectories(target.getParent());
+            file.transferTo(target);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Fayl saqlanmadi", e);
+        }
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status != STATUS_COMMITTED) deleteNow(relativePath);
+                }
+            });
+        }
+        return relativePath;
+    }
+
+    private Path resolve(String relativePath) {
         Path file = storageRoot.resolve(relativePath).normalize();
         if (!file.startsWith(storageRoot)) {
             throw new IllegalArgumentException("Fayl yo'li noto'g'ri");

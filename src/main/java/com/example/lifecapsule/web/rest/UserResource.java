@@ -7,10 +7,12 @@
 package com.example.lifecapsule.web.rest;
 
 import com.example.lifecapsule.entity.Users;
+import com.example.lifecapsule.service.JwtService;
 import com.example.lifecapsule.service.UserService;
 import com.example.lifecapsule.service.dto.ChangePasswordDto;
 import com.example.lifecapsule.service.dto.UpdateUserDto;
 import com.example.lifecapsule.service.dto.UserDto;
+import com.example.lifecapsule.service.response.LoginResponse;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.ResponseEntity;
@@ -25,9 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/me")
 public class UserResource {
     private final UserService userService;
+    private final JwtService jwtService;
 
-    public UserResource(UserService userService) {
+    public UserResource(UserService userService, JwtService jwtService) {
         this.userService = userService;
+        this.jwtService = jwtService;
     }
 
     @GetMapping
@@ -45,13 +49,19 @@ public class UserResource {
         return ResponseEntity.ok().body(result);
     }
 
+    /** Every earlier token stops working once the password changes, so the caller gets a fresh pair. */
     @PatchMapping("/password")
-    public ResponseEntity<Void> changePassword(
+    public ResponseEntity<LoginResponse> changePassword(
             @AuthenticationPrincipal Users user,
             @Valid @org.springframework.web.bind.annotation.RequestBody ChangePasswordDto input
     ) {
         userService.changePassword(user, input);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(new LoginResponse(
+                jwtService.generateToken(user),
+                jwtService.generateRefreshToken(user),
+                "Bearer",
+                jwtService.getExpirationTime()
+        ));
     }
 
     @DeleteMapping

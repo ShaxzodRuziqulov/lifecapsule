@@ -10,12 +10,15 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface FamilyAccessRepository extends JpaRepository<FamilyAccess, Long> {
     Optional<FamilyAccess> findByFamilyIdAndUserId(Long familyId, Long userId);
+
+    Optional<FamilyAccess> findByIdAndFamilyId(Long id, Long familyId);
 
     List<FamilyAccess> findAllByUserIdAndStatusOrderByCreatedAtDesc(Long userId, AccessStatus status);
 
@@ -50,9 +53,19 @@ public interface FamilyAccessRepository extends JpaRepository<FamilyAccess, Long
 
     List<FamilyAccess> findAllByFamilyIdOrderByCreatedAtAsc(Long familyId);
 
-    long countByFamilyIdAndStatus(Long familyId, AccessStatus status);
+    @Query("""
+            select access.family.id as id, count(access) as total from FamilyAccess access
+            where access.family.id in :familyIds and access.status = :status
+            group by access.family.id
+            """)
+    List<IdCount> countByFamilyIds(@Param("familyIds") Collection<Long> familyIds, @Param("status") AccessStatus status);
 
-    long countByUserIdAndStatus(Long userId, AccessStatus status);
+    @Query("""
+            select access.user.id as id, count(access) as total from FamilyAccess access
+            where access.user.id in :userIds and access.status = :status
+            group by access.user.id
+            """)
+    List<IdCount> countByUserIds(@Param("userIds") Collection<Long> userIds, @Param("status") AccessStatus status);
 
     void deleteAllByFamilyId(Long familyId);
 }

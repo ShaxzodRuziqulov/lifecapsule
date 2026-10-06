@@ -27,6 +27,11 @@ class RelationshipServiceTest {
     @Mock FamilyRepository families;
     @Mock RelationshipMapper mapper;
     @InjectMocks RelationshipService service;
+
+    @BeforeEach
+    void wireAuthorization() {
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "authorization", new FamilyAuthorization(accesses, families));
+    }
     private final Users user = new Users();
     private final Family family = new Family();
     private final FamilyAccess access = new FamilyAccess();

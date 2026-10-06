@@ -22,6 +22,7 @@ import com.example.lifecapsule.service.dto.PageFilter;
 import com.example.lifecapsule.service.dto.PersonDto;
 import com.example.lifecapsule.service.mapper.PersonMapper;
 import org.springframework.data.domain.PageImpl;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -55,6 +56,11 @@ class PersonServicePermissionTest {
     private PersonMapper personMapper;
     @InjectMocks
     private PersonService personService;
+
+    @BeforeEach
+    void wireAuthorization() {
+        org.springframework.test.util.ReflectionTestUtils.setField(personService, "authorization", new FamilyAuthorization(familyAccessRepository, familyRepository));
+    }
 
     @Test
     void viewerCannotCreatePerson() {
@@ -210,6 +216,36 @@ class PersonServicePermissionTest {
         assertThat(result.getBirthPlace()).isEqualTo("Toshkent");
         assertThat(result.getOccupation()).isEqualTo("Dizayner");
         assertThat(result.getLinkedUserId()).isEqualTo(77L);
+    }
+
+    @Test
+    void maskedPersonIdsExcludeTheViewersMahramWomen() {
+        Users viewer = user(3L);
+        Family family = family(10L);
+        Person anvar = person(family, 20L, Gender.MALE);
+        Person malika = person(family, 30L, Gender.FEMALE);
+        Person kamol = person(family, 40L, Gender.MALE);
+
+        when(familyAccessRepository.findByFamilyIdAndUserId(10L, 3L))
+                .thenReturn(Optional.of(access(family, viewer, FamilyAccessRole.VIEWER)));
+        when(personRepository.findByFamilyIdAndLinkedUserId(10L, 3L)).thenReturn(Optional.of(kamol));
+        when(relationshipRepository.findAllByFamilyIdOrderByCreatedAtAsc(10L)).thenReturn(List.of(
+                relationship(family, anvar, malika, RelationshipType.PARENT),
+                relationship(family, anvar, kamol, RelationshipType.PARENT)
+        ));
+        when(personRepository.findIdsByFamilyIdAndGender(10L, Gender.FEMALE)).thenReturn(List.of(30L, 50L));
+
+        assertThat(personService.maskedPersonIds(viewer, 10L)).containsExactly(50L);
+    }
+
+    @Test
+    void editorsSeeEveryProfile() {
+        Users editor = user(2L);
+        when(familyAccessRepository.findByFamilyIdAndUserId(10L, 2L))
+                .thenReturn(Optional.of(access(family(10L), editor, FamilyAccessRole.EDITOR)));
+
+        assertThat(personService.maskedPersonIds(editor, 10L)).isEmpty();
+        verify(personRepository, never()).findIdsByFamilyIdAndGender(any(), any());
     }
 
     @Test

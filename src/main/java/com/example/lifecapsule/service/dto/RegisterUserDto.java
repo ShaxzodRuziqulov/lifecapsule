@@ -8,10 +8,13 @@ package com.example.lifecapsule.service.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public class RegisterUserDto {
-    @NotBlank(message = "Foydalanuvchi ismi bo'sh bo'lishi mumkin emas")
+    @NotBlank(message = "Foydalanuvchi nomi bo'sh bo'lishi mumkin emas")
+    @Size(min = 3, max = 50, message = "Foydalanuvchi nomi 3-50 belgidan iborat bo'lishi kerak")
+    @Pattern(regexp = "^[A-Za-z0-9_.-]+$", message = "Foydalanuvchi nomida faqat lotin harflari, raqamlar, nuqta, _ va - bo'lishi mumkin")
     private String username;
 
     @NotBlank(message = "Email bo'sh bo'lishi mumkin emas")

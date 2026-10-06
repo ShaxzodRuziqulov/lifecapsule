@@ -1,0 +1,14 @@
+# Active for every `mvn test` run (see surefire config in pom.xml).
+# Tests get a throwaway schema and never touch the development database.
+spring:
+  datasource:
+    url: ${TEST_DB_URL:jdbc:postgresql://localhost:5432/lifecapsule_test}
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+app:
+  storage:
+    root: ./target/test-uploads
+  admin:
+    enabled: false

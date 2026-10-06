@@ -839,45 +839,6 @@
           }
         },
         {
-          "name": "Add Family Access",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const json = pm.response.json();",
-                  "if (json.id) pm.environment.set('accessId', json.id);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{viewerEmail}}\",\n  \"accessRole\": \"VIEWER\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/families/{{familyId}}/access",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "families",
-                "{{familyId}}",
-                "access"
-              ]
-            }
-          }
-        },
-        {
           "name": "Invite Family Access",
           "event": [
             {

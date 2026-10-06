@@ -20,11 +20,14 @@ All settings live in [`src/main/resources/application.yml`](src/main/resources/a
 | `DB_USERNAME` | `postgres` | Postgres username |
 | `DB_PASSWORD` | `123` | Postgres password |
 | `JWT_SECRET` | (a generated default in the file) | Signing key for auth tokens. **Change this and keep it secret** if this app is ever exposed beyond your own machine — anyone with the key can forge login tokens. |
+| `SHOW_SQL` | `false` | Log every SQL statement Hibernate runs |
 | `APP_STORAGE_ROOT` | `./uploads` | Folder where uploaded photos/videos are saved on disk (created automatically if missing) |
 | `APP_ADMIN_ENABLED` | `true` | Whether a default admin account is created on first startup |
 | `APP_ADMIN_USERNAME` | `admin` | Default admin username |
 | `APP_ADMIN_PASSWORD` | `Admin123!` | Default admin password — **change this** for anything beyond local testing |
 | `APP_ADMIN_EMAIL` | `admin@lifecapsule.local` | Default admin email |
+
+Access tokens live 1 hour and refresh tokens 30 days (the frontend renews silently). Tokens identify the user by id, so renaming an account keeps the session; changing or resetting a password revokes every token issued before it.
 
 The admin account (`Role.ADMIN`) can see and manage every family, and can reset any user's password (see below) — useful since there's no self-service "forgot password" email flow in this project.
 
@@ -43,6 +46,10 @@ Run the test suite:
 ```bash
 ./mvnw test
 ```
+
+Tests run under the `test` profile against a separate `lifecapsule_test` database (override with `TEST_DB_URL`), which Hibernate recreates on every run — create it once with `createdb lifecapsule_test`. They never touch the development database.
+
+Login is throttled: 5 wrong passwords for one username within 15 minutes lock that username for 15 minutes (HTTP 429).
 
 ## API testing
 

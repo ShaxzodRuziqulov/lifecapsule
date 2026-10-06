@@ -8,9 +8,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
-    database: postgresql
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: ${SHOW_SQL:false}
+    open-in-view: false
   servlet:
     multipart:
       max-file-size: 200MB
@@ -18,8 +17,8 @@ spring:
 security:
   jwt:
       secret-key: ${JWT_SECRET:jNVeWHuTfBMybSjIdCERIFxB3STWKAJpxZSID85M-__V65Tg3NgClGD1jLm7XdmPC8dOEqf7RtTK32IbxGbp3A}
-      expiration-time: 2628000000
-      refresh-expiration-time: 864000000
+      expiration-time: 3600000
+      refresh-expiration-time: 2592000000
 app:
   storage:
     root: ${APP_STORAGE_ROOT:./uploads}

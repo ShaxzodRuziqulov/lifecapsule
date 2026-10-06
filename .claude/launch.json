@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "backend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd /d D:\\12\\lifecapsule && .\\mvnw.cmd spring-boot:run"],
+      "port": 8085
+    },
+    {
       "name": "frontend",
       "runtimeExecutable": "cmd",
       "runtimeArgs": ["/c", "cd /d D:/12/lifecapsule-front-system && npm run dev"],

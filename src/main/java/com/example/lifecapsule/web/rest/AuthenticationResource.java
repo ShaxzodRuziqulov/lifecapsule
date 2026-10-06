@@ -53,8 +53,7 @@ public class AuthenticationResource {
     @PostMapping("/refresh")
     public ResponseEntity<LoginResponse> refresh(@Valid @RequestBody RefreshTokenDto input) {
         try {
-            String username = jwtService.extractUserName(input.getRefreshToken());
-            Users user = authenticationService.findByUsername(username);
+            Users user = authenticationService.findById(jwtService.extractUserId(input.getRefreshToken()));
             if (!jwtService.isRefreshTokenValid(input.getRefreshToken(), user)) {
                 throw new BadCredentialsException("Refresh token yaroqsiz");
             }

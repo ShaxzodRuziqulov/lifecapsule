@@ -6,13 +6,16 @@ import com.example.lifecapsule.entity.Users;
 import com.example.lifecapsule.entity.enumirated.AccessStatus;
 import com.example.lifecapsule.entity.enumirated.FamilyAccessRole;
 import com.example.lifecapsule.entity.enumirated.Role;
+import com.example.lifecapsule.errors.ConflictException;
 import com.example.lifecapsule.errors.ForbiddenException;
 import com.example.lifecapsule.repository.FamilyAccessRepository;
 import com.example.lifecapsule.repository.FamilyRepository;
 import com.example.lifecapsule.repository.UserRepository;
 import com.example.lifecapsule.service.dto.CreateFamilyAccessDto;
 import com.example.lifecapsule.service.dto.FamilyAccessDto;
+import com.example.lifecapsule.service.dto.UpdateFamilyAccessDto;
 import com.example.lifecapsule.service.mapper.FamilyAccessMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -42,6 +45,11 @@ class FamilyAccessServiceTest {
     @InjectMocks
     private FamilyAccessService familyAccessService;
 
+    @BeforeEach
+    void wireAuthorization() {
+        org.springframework.test.util.ReflectionTestUtils.setField(familyAccessService, "authorization", new FamilyAuthorization(familyAccessRepository, familyRepository));
+    }
+
     @Test
     void editorCannotManageFamilyAccess() {
         Users editor = user(2L, "editor@lifecapsule.uz");
@@ -53,43 +61,34 @@ class FamilyAccessServiceTest {
         input.setEmail("viewer@lifecapsule.uz");
         input.setAccessRole(FamilyAccessRole.VIEWER);
 
-        assertThatThrownBy(() -> familyAccessService.addFamilyAccess(editor, 10L, input))
+        assertThatThrownBy(() -> familyAccessService.inviteFamilyAccess(editor, 10L, input))
                 .isInstanceOf(ForbiddenException.class);
         verify(userRepository, never()).findByEmailIgnoreCase(any());
     }
 
     @Test
-    void ownerCanGrantViewerAccess() {
+    void ownerCannotActivateAnInvitationOnTheUsersBehalf() {
         Users owner = user(1L, "owner@lifecapsule.uz");
         Users viewer = user(3L, "viewer@lifecapsule.uz");
         Family family = family(10L);
-        FamilyAccess ownerAccess = access(family, owner, FamilyAccessRole.OWNER);
-        when(familyAccessRepository.findByFamilyIdAndUserId(any(), any()))
-                .thenAnswer(invocation -> {
-                    Long userId = invocation.getArgument(1);
-                    return userId.equals(1L) ? Optional.of(ownerAccess) : Optional.empty();
-                });
-        when(userRepository.findByEmailIgnoreCase("viewer@lifecapsule.uz"))
-                .thenReturn(Optional.of(viewer));
-        when(familyAccessRepository.save(any(FamilyAccess.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        FamilyAccess pending = access(family, viewer, FamilyAccessRole.VIEWER);
+        pending.setStatus(AccessStatus.PENDING);
+        when(familyAccessRepository.findByFamilyIdAndUserId(10L, 1L))
+                .thenReturn(Optional.of(access(family, owner, FamilyAccessRole.OWNER)));
+        when(familyAccessRepository.findByIdAndFamilyId(20L, 10L)).thenReturn(Optional.of(pending));
 
-        FamilyAccessDto dto = new FamilyAccessDto();
-        dto.setUserId(3L);
-        dto.setAccessRole(FamilyAccessRole.VIEWER);
-        when(familyAccessMapper.toDto(any(FamilyAccess.class))).thenReturn(dto);
+        UpdateFamilyAccessDto input = new UpdateFamilyAccessDto();
+        input.setAccessRole(FamilyAccessRole.EDITOR);
+        input.setStatus(AccessStatus.ACTIVE);
 
-        FamilyAccessDto result = familyAccessService.addFamilyAccess(owner, 10L, input("viewer@lifecapsule.uz"));
-
-        assertThat(result.getUserId()).isEqualTo(3L);
-        ArgumentCaptor<FamilyAccess> captor = ArgumentCaptor.forClass(FamilyAccess.class);
-        verify(familyAccessRepository).save(captor.capture());
-        assertThat(captor.getValue().getAccessRole()).isEqualTo(FamilyAccessRole.VIEWER);
-        assertThat(captor.getValue().getStatus()).isEqualTo(AccessStatus.ACTIVE);
+        assertThatThrownBy(() -> familyAccessService.updateFamilyAccess(owner, 10L, 20L, input))
+                .isInstanceOf(ConflictException.class);
+        assertThat(pending.getStatus()).isEqualTo(AccessStatus.PENDING);
+        verify(familyAccessRepository, never()).save(any());
     }
 
     @Test
-    void adminCanGrantViewerAccessWithoutFamilyAccess() {
+    void adminCanInviteWithoutFamilyAccess() {
         Users admin = user(99L, "admin@lifecapsule.local");
         admin.setRole(Role.ADMIN);
         Users viewer = user(3L, "viewer@lifecapsule.uz");
@@ -106,14 +105,14 @@ class FamilyAccessServiceTest {
         dto.setAccessRole(FamilyAccessRole.VIEWER);
         when(familyAccessMapper.toDto(any(FamilyAccess.class))).thenReturn(dto);
 
-        FamilyAccessDto result = familyAccessService.addFamilyAccess(admin, 10L, input("viewer@lifecapsule.uz"));
+        FamilyAccessDto result = familyAccessService.inviteFamilyAccess(admin, 10L, input("viewer@lifecapsule.uz"));
 
         assertThat(result.getUserId()).isEqualTo(3L);
         ArgumentCaptor<FamilyAccess> captor = ArgumentCaptor.forClass(FamilyAccess.class);
         verify(familyAccessRepository).save(captor.capture());
         assertThat(captor.getValue().getFamily()).isEqualTo(family);
         assertThat(captor.getValue().getAccessRole()).isEqualTo(FamilyAccessRole.VIEWER);
-        assertThat(captor.getValue().getStatus()).isEqualTo(AccessStatus.ACTIVE);
+        assertThat(captor.getValue().getStatus()).isEqualTo(AccessStatus.PENDING);
     }
 
     @Test

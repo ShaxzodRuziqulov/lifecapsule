@@ -1,17 +1,11 @@
 package com.example.lifecapsule.service;
 
 import com.example.lifecapsule.entity.FamilyAccess;
-import com.example.lifecapsule.entity.Family;
 import com.example.lifecapsule.entity.Person;
 import com.example.lifecapsule.entity.Relationship;
 import com.example.lifecapsule.entity.Users;
-import com.example.lifecapsule.entity.enumirated.AccessStatus;
-import com.example.lifecapsule.entity.enumirated.FamilyAccessRole;
-import com.example.lifecapsule.entity.enumirated.Role;
 import com.example.lifecapsule.errors.ConflictException;
-import com.example.lifecapsule.errors.ForbiddenException;
 import com.example.lifecapsule.errors.NotFoundException;
-import com.example.lifecapsule.repository.FamilyAccessRepository;
 import com.example.lifecapsule.repository.FamilyRepository;
 import com.example.lifecapsule.repository.PersonRepository;
 import com.example.lifecapsule.repository.RelationshipRepository;
@@ -47,19 +41,19 @@ public class RelationshipService {
 
     private final RelationshipRepository relationshipRepository;
     private final PersonRepository personRepository;
-    private final FamilyAccessRepository familyAccessRepository;
+    private final FamilyAuthorization authorization;
     private final FamilyRepository familyRepository;
     private final RelationshipMapper relationshipMapper;
 
     @Transactional
     public RelationshipDto createRelationship(Users currentUser, Long familyId, CreateRelationshipDto input) {
-        getEditableAccess(currentUser, familyId);
+        FamilyAccess access = authorization.editable(currentUser, familyId);
         lockFamily(familyId);
         validateDifferentPeople(input.getFromPersonId(), input.getToPersonId());
         validateRelationship(familyId, input.getFromPersonId(), input.getToPersonId(), input.getType(), null);
 
         Relationship relationship = relationshipMapper.toEntity(input);
-        relationship.setFamily(getReadableAccess(currentUser, familyId).getFamily());
+        relationship.setFamily(access.getFamily());
         relationship.setFromPerson(getPersonEntity(familyId, input.getFromPersonId()));
         relationship.setToPerson(getPersonEntity(familyId, input.getToPersonId()));
         relationship.setNote(trimToNull(input.getNote()));
@@ -73,7 +67,7 @@ public class RelationshipService {
             Long familyId,
             PageFilter filter
     ) {
-        getReadableAccess(currentUser, familyId);
+        authorization.readable(currentUser, familyId);
         Pageable pageable = filter.toPageable(DEFAULT_SORT, ALLOWED_SORTS);
 
         String search = filter.normalizedQuery();
@@ -85,7 +79,7 @@ public class RelationshipService {
 
     @Transactional(readOnly = true)
     public RelationshipDto getRelationship(Users currentUser, Long familyId, Long relationshipId) {
-        getReadableAccess(currentUser, familyId);
+        authorization.readable(currentUser, familyId);
         return relationshipMapper.toDto(getRelationshipEntity(familyId, relationshipId));
     }
 
@@ -96,7 +90,7 @@ public class RelationshipService {
             Long relationshipId,
             UpdateRelationshipDto input
     ) {
-        getEditableAccess(currentUser, familyId);
+        authorization.editable(currentUser, familyId);
         lockFamily(familyId);
         Relationship relationship = getRelationshipEntity(familyId, relationshipId);
         validateDifferentPeople(input.getFromPersonId(), input.getToPersonId());
@@ -112,7 +106,7 @@ public class RelationshipService {
 
     @Transactional
     public void deleteRelationship(Users currentUser, Long familyId, Long relationshipId) {
-        getEditableAccess(currentUser, familyId);
+        authorization.editable(currentUser, familyId);
         relationshipRepository.delete(getRelationshipEntity(familyId, relationshipId));
     }
 
@@ -178,44 +172,6 @@ public class RelationshipService {
             }
             pending.addAll(children.getOrDefault(personId, Set.of()));
         }
-    }
-
-    private FamilyAccess getReadableAccess(Users currentUser, Long familyId) {
-        if (isAdmin(currentUser)) {
-            return adminAccess(currentUser, familyId);
-        }
-
-        FamilyAccess access = familyAccessRepository.findByFamilyIdAndUserId(familyId, currentUser.getId())
-                .orElseThrow(() -> new NotFoundException("Oila topilmadi yoki sizda ruxsat yo'q"));
-
-        if (access.getStatus() != AccessStatus.ACTIVE) {
-            throw new NotFoundException("Oila topilmadi yoki sizda ruxsat yo'q");
-        }
-        return access;
-    }
-
-    private FamilyAccess adminAccess(Users currentUser, Long familyId) {
-        Family family = familyRepository.findById(familyId)
-                .orElseThrow(() -> new NotFoundException("Oila topilmadi"));
-        FamilyAccess access = new FamilyAccess();
-        access.setFamily(family);
-        access.setUser(currentUser);
-        access.setAccessRole(FamilyAccessRole.OWNER);
-        access.setStatus(AccessStatus.ACTIVE);
-        return access;
-    }
-
-    private boolean isAdmin(Users currentUser) {
-        return currentUser != null && currentUser.getRole() == Role.ADMIN;
-    }
-
-    private FamilyAccess getEditableAccess(Users currentUser, Long familyId) {
-        FamilyAccess access = getReadableAccess(currentUser, familyId);
-
-        if (access.getAccessRole() == FamilyAccessRole.VIEWER) {
-            throw new ForbiddenException("Sizda bu oilani o'zgartirish huquqi yo'q");
-        }
-        return access;
     }
 
     private String trimToNull(String value) {

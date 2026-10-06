@@ -5,11 +5,11 @@ import com.example.lifecapsule.entity.FamilyAccess;
 import com.example.lifecapsule.entity.Users;
 import com.example.lifecapsule.entity.enumirated.AccessStatus;
 import com.example.lifecapsule.entity.enumirated.FamilyAccessRole;
-import com.example.lifecapsule.entity.enumirated.Role;
 import com.example.lifecapsule.errors.ForbiddenException;
 import com.example.lifecapsule.errors.NotFoundException;
 import com.example.lifecapsule.repository.FamilyAccessRepository;
 import com.example.lifecapsule.repository.FamilyRepository;
+import com.example.lifecapsule.repository.IdCount;
 import com.example.lifecapsule.repository.MediaRepository;
 import com.example.lifecapsule.repository.PersonRepository;
 import com.example.lifecapsule.repository.RelationshipRepository;
@@ -24,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -46,6 +47,7 @@ public class FamilyService {
 
     private final FamilyRepository familyRepository;
     private final FamilyAccessRepository familyAccessRepository;
+    private final FamilyAuthorization authorization;
     private final FamilyMapper familyMapper;
     private final PersonRepository personRepository;
     private final RelationshipRepository relationshipRepository;
@@ -74,12 +76,7 @@ public class FamilyService {
         return toDto(access);
     }
 
-    /**
-     * Deliberately membership-only, even for ADMIN - this backs the everyday family
-     * switcher, which loads every returned family's full person/relationship data.
-     * An admin who needs a system-wide view should use getAllFamiliesForAdmin instead,
-     * which stays lightweight (summaries only, no fan-out fetch).
-     */
+    /** Membership-only even for ADMIN; the system-wide view is getAllFamiliesForAdmin. */
     @Transactional(readOnly = true)
     public PageResponse<FamilyDto> getMyFamilies(Users currentUser, PageFilter filter) {
         String search = filter.normalizedQuery();
@@ -92,12 +89,16 @@ public class FamilyService {
 
     @Transactional(readOnly = true)
     public PageResponse<AdminFamilySummaryDto> getAllFamiliesForAdmin(Users currentUser, PageFilter filter) {
-        if (!isAdmin(currentUser)) {
+        if (!FamilyAuthorization.isAdmin(currentUser)) {
             throw new ForbiddenException("Bu amalni faqat administrator bajara oladi");
         }
         Pageable pageable = filter.toPageable(DEFAULT_SORT, ADMIN_ALLOWED_SORTS);
-        Page<AdminFamilySummaryDto> result = familyRepository
-                .searchAllFamiliesPaging(filter.normalizedQuery(), pageable)
+        Page<Family> families = familyRepository.searchAllFamiliesPaging(filter.normalizedQuery(), pageable);
+        Map<Long, Long> memberCounts = familyAccessRepository
+                .countByFamilyIds(families.map(Family::getId).toList(), AccessStatus.ACTIVE)
+                .stream()
+                .collect(Collectors.toMap(IdCount::getId, IdCount::getTotal));
+        Page<AdminFamilySummaryDto> result = families
                 .map(family -> {
                     AdminFamilySummaryDto dto = new AdminFamilySummaryDto();
                     dto.setId(family.getId());
@@ -106,7 +107,7 @@ public class FamilyService {
                     dto.setVisibility(family.getVisibility());
                     dto.setOwnerUsername(family.getCreatedBy().getUserName());
                     dto.setOwnerEmail(family.getCreatedBy().getEmail());
-                    dto.setMemberCount(familyAccessRepository.countByFamilyIdAndStatus(family.getId(), AccessStatus.ACTIVE));
+                    dto.setMemberCount(memberCounts.getOrDefault(family.getId(), 0L));
                     dto.setCreatedAt(family.getCreatedAt());
                     return dto;
                 });
@@ -115,38 +116,25 @@ public class FamilyService {
 
     @Transactional(readOnly = true)
     public FamilyDto getFamily(Users currentUser, Long familyId) {
-        if (isAdmin(currentUser)) {
-            return toDto(getFamilyEntity(familyId), FamilyAccessRole.OWNER);
-        }
-        return toDto(getActiveAccess(currentUser, familyId));
+        return toDto(authorization.readable(currentUser, familyId));
     }
 
+    /** Name, description and especially visibility are owner decisions, matching the settings UI. */
     @Transactional
     public FamilyDto updateFamily(Users currentUser, Long familyId, UpdateFamilyDto input) {
-        FamilyAccess access = isAdmin(currentUser) ? null : getActiveAccess(currentUser, familyId);
-
-        if (access != null && access.getAccessRole() == FamilyAccessRole.VIEWER) {
-            throw new ForbiddenException("Sizda oilani o'zgartirish huquqi yo'q");
-        }
-
-        Family family = access == null ? getFamilyEntity(familyId) : access.getFamily();
+        FamilyAccess access = authorization.owner(currentUser, familyId);
+        Family family = access.getFamily();
         family.setName(input.getName().trim());
         family.setDescription(trimToNull(input.getDescription()));
         family.setVisibility(input.getVisibility());
 
         familyRepository.save(family);
-        return access == null ? toDto(family, FamilyAccessRole.OWNER) : toDto(access);
+        return toDto(access);
     }
 
     @Transactional
     public void deleteFamily(Users currentUser, Long familyId) {
-        FamilyAccess access = isAdmin(currentUser) ? null : getActiveAccess(currentUser, familyId);
-
-        if (access != null && access.getAccessRole() != FamilyAccessRole.OWNER) {
-            throw new ForbiddenException("Oilani faqat egasi o'chira oladi");
-        }
-
-        Family family = access == null ? getFamilyEntity(familyId) : access.getFamily();
+        Family family = authorization.owner(currentUser, familyId).getFamily();
         var media = mediaRepository.findAllByFamilyId(familyId);
         String coverPath = family.getCoverStoredFileName();
         relationshipRepository.deleteAllByFamilyId(familyId);
@@ -161,7 +149,8 @@ public class FamilyService {
 
     @Transactional
     public FamilyDto uploadCover(Users currentUser, Long familyId, MultipartFile file) {
-        Family family = getOwnerFamily(currentUser, familyId);
+        FamilyAccess access = authorization.owner(currentUser, familyId);
+        Family family = access.getFamily();
         if (file == null || file.isEmpty()) throw new IllegalArgumentException("Rasm tanlanmagan");
         if (file.getSize() > MAX_COVER_FILE_SIZE) throw new IllegalArgumentException("Cover rasmi 15 MB dan katta bo'lmasligi kerak");
         if (!ALLOWED_COVER_TYPES.contains(file.getContentType())) throw new IllegalArgumentException("Cover uchun faqat rasm fayllari qabul qilinadi");
@@ -172,19 +161,19 @@ public class FamilyService {
         family.setCoverContentType(file.getContentType());
         Family saved = familyRepository.save(family);
         if (previousPath != null) storageService.delete(previousPath);
-        return toDto(saved, isAdmin(currentUser) ? FamilyAccessRole.OWNER : getActiveAccess(currentUser, familyId).getAccessRole());
+        return toDto(saved, access.getAccessRole());
     }
 
     @Transactional(readOnly = true)
     public CoverFile loadCover(Users currentUser, Long familyId) {
-        Family family = isAdmin(currentUser) ? getFamilyEntity(familyId) : getActiveAccess(currentUser, familyId).getFamily();
+        Family family = authorization.readable(currentUser, familyId).getFamily();
         if (family.getCoverStoredFileName() == null) throw new NotFoundException("Cover rasmi topilmadi");
         return new CoverFile(storageService.loadAsResource(family.getCoverStoredFileName()), family.getCoverContentType(), family.getCoverOriginalFileName());
     }
 
     @Transactional
     public void deleteCover(Users currentUser, Long familyId) {
-        Family family = getOwnerFamily(currentUser, familyId);
+        Family family = authorization.owner(currentUser, familyId).getFamily();
         String path = family.getCoverStoredFileName();
         if (path == null) return;
         family.setCoverStoredFileName(null);
@@ -201,36 +190,10 @@ public class FamilyService {
     private FamilyDto toDto(Family family, FamilyAccessRole accessRole) {
         FamilyDto dto = familyMapper.toDto(family);
         dto.setAccessRole(accessRole);
-        if (family.getCoverStoredFileName() != null) dto.setCoverUrl("/families/%d/cover".formatted(family.getId()));
+        if (family.getCoverStoredFileName() != null) {
+            dto.setCoverUrl("/families/%d/cover?v=%s".formatted(family.getId(), Integer.toHexString(family.getCoverStoredFileName().hashCode())));
+        }
         return dto;
-    }
-
-    private Family getOwnerFamily(Users currentUser, Long familyId) {
-        if (isAdmin(currentUser)) return getFamilyEntity(familyId);
-        FamilyAccess access = getActiveAccess(currentUser, familyId);
-        if (access.getAccessRole() != FamilyAccessRole.OWNER) {
-            throw new ForbiddenException("Cover rasmini faqat oila egasi o'zgartira oladi");
-        }
-        return access.getFamily();
-    }
-
-    private FamilyAccess getActiveAccess(Users currentUser, Long familyId) {
-        FamilyAccess access = familyAccessRepository.findByFamilyIdAndUserId(familyId, currentUser.getId())
-                .orElseThrow(() -> new NotFoundException("Oila topilmadi yoki sizda ruxsat yo'q"));
-
-        if (access.getStatus() != AccessStatus.ACTIVE) {
-            throw new NotFoundException("Oila topilmadi yoki sizda ruxsat yo'q");
-        }
-        return access;
-    }
-
-    private Family getFamilyEntity(Long familyId) {
-        return familyRepository.findById(familyId)
-                .orElseThrow(() -> new NotFoundException("Oila topilmadi"));
-    }
-
-    private boolean isAdmin(Users currentUser) {
-        return currentUser != null && currentUser.getRole() == Role.ADMIN;
     }
 
     private String trimToNull(String value) {

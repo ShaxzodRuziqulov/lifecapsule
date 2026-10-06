@@ -18,7 +18,7 @@ import com.example.lifecapsule.service.mapper.UserMapper;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,12 +29,15 @@ public class AuthenticationService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
+    private final LoginAttemptService loginAttemptService;
 
-    public AuthenticationService(UserMapper userMapper, UserRepository userRepository, PasswordEncoder passwordEncoder, AuthenticationManager authenticationManager) {
+    public AuthenticationService(UserMapper userMapper, UserRepository userRepository, PasswordEncoder passwordEncoder,
+                                 AuthenticationManager authenticationManager, LoginAttemptService loginAttemptService) {
         this.userMapper = userMapper;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
+        this.loginAttemptService = loginAttemptService;
     }
 
 
@@ -73,22 +76,23 @@ public class AuthenticationService {
             throw new IllegalArgumentException(("Parol kiritilishi shart"));
         }
         String username = input.getUsername().trim();
+        loginAttemptService.checkAllowed(username);
         try {
-            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
-                            username,
-                            input.getPassword()
-                    )
-            );
+            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(username, input.getPassword()));
         } catch (BadCredentialsException e) {
+            loginAttemptService.recordFailure(username);
             throw new BadCredentialsException("Foydalanuvchi nomi yoki parol noto'g'ri");
+        } catch (AuthenticationException e) {
+            throw new BadCredentialsException("Bu akkaunt faol emas");
         }
+        loginAttemptService.recordSuccess(username);
         return userRepository.findByUserNameIgnoreCase(username)
-                .orElseThrow(() -> new UsernameNotFoundException("Foydalanuvchi topilmadi " + username));
+                .orElseThrow(() -> new BadCredentialsException("Foydalanuvchi nomi yoki parol noto'g'ri"));
     }
 
-    public Users findByUsername(String username) {
-        return userRepository.findByUserNameIgnoreCase(username.trim())
-                .orElseThrow(() -> new UsernameNotFoundException("Foydalanuvchi topilmadi " + username));
+    public Users findById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new BadCredentialsException("Refresh token yaroqsiz"));
     }
 
 }

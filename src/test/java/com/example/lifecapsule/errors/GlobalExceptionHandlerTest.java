@@ -44,6 +44,17 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().status()).isEqualTo(409);
     }
 
+    @Test
+    void unknownPathReturns404InsteadOf500() {
+        HttpServletRequest request = request("/nope");
+
+        var response = handler.handleNoResource(
+                new org.springframework.web.servlet.resource.NoResourceFoundException(org.springframework.http.HttpMethod.GET, "nope"),
+                request);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(404);
+    }
+
     private HttpServletRequest request(String path) {
         HttpServletRequest request = mock(HttpServletRequest.class);
         when(request.getRequestURI()).thenReturn(path);

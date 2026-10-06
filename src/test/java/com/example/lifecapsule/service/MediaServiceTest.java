@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -44,6 +45,11 @@ class MediaServiceTest {
     @Mock private StorageService storageService;
     @Mock private PersonService personService;
     @InjectMocks private MediaService mediaService;
+
+    @BeforeEach
+    void wireAuthorization() {
+        org.springframework.test.util.ReflectionTestUtils.setField(mediaService, "authorization", new FamilyAuthorization(familyAccessRepository, familyRepository));
+    }
 
     private final Users editor = user(2L);
     private final Family family = family(10L);
@@ -101,13 +107,34 @@ class MediaServiceTest {
         tagged.getTaggedPersons().add(person(30L));
         stubToDto();
         when(personRepository.findByIdAndFamilyId(30L, 10L)).thenReturn(Optional.of(person(30L)));
-        when(personService.canViewFullProfile(editor, 10L, 30L)).thenReturn(true);
+        when(personService.maskedPersonIds(editor, 10L)).thenReturn(Set.of());
         when(mediaRepository.findAllVisibleToPerson(10L, 30L)).thenReturn(List.of(media, tagged));
 
         List<MediaDto> result = mediaService.list(editor, 10L, 30L);
 
         assertThat(result).extracting(MediaDto::getId).containsExactly(1L, 2L);
         assertThat(result.get(1).getTaggedPersonIds()).containsExactly(30L);
+    }
+
+    @Test void galleryHidesItemsOwnedByAMaskedPerson() {
+        Media maskedOwnersPhoto = media(2L, 50L);
+        maskedOwnersPhoto.getTaggedPersons().add(person(30L));
+        stubToDto();
+        when(personRepository.findByIdAndFamilyId(30L, 10L)).thenReturn(Optional.of(person(30L)));
+        when(personService.maskedPersonIds(editor, 10L)).thenReturn(Set.of(50L));
+        when(mediaRepository.findAllVisibleToPerson(10L, 30L)).thenReturn(List.of(media, maskedOwnersPhoto));
+
+        List<MediaDto> result = mediaService.list(editor, 10L, 30L);
+
+        assertThat(result).extracting(MediaDto::getId).containsExactly(1L);
+    }
+
+    @Test void galleryOfAMaskedPersonIsEmpty() {
+        when(personRepository.findByIdAndFamilyId(50L, 10L)).thenReturn(Optional.of(person(50L)));
+        when(personService.maskedPersonIds(editor, 10L)).thenReturn(Set.of(50L));
+
+        assertThat(mediaService.list(editor, 10L, 50L)).isEmpty();
+        verify(mediaRepository, never()).findAllVisibleToPerson(any(), any());
     }
 
     @Test void setsVisibleToFamily() {
@@ -132,9 +159,7 @@ class MediaServiceTest {
         masked.setCreatedAt(LocalDateTime.of(2024, 3, 1, 0, 0));
         stubToDto();
         when(mediaRepository.findAllByFamilyId(10L)).thenReturn(List.of(older, newer, masked));
-        when(personService.canViewFullProfile(editor, 10L, 30L)).thenReturn(true);
-        when(personService.canViewFullProfile(editor, 10L, 40L)).thenReturn(true);
-        when(personService.canViewFullProfile(editor, 10L, 50L)).thenReturn(false);
+        when(personService.maskedPersonIds(editor, 10L)).thenReturn(Set.of(50L));
 
         List<MediaDto> result = mediaService.listForFamily(editor, 10L);
 

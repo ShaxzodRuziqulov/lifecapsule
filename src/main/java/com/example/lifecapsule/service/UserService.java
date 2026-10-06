@@ -8,11 +8,12 @@ package com.example.lifecapsule.service;
 
 import com.example.lifecapsule.entity.Users;
 import com.example.lifecapsule.entity.enumirated.AccessStatus;
-import com.example.lifecapsule.entity.enumirated.Role;
 import com.example.lifecapsule.entity.enumirated.Status;
+import com.example.lifecapsule.errors.ConflictException;
 import com.example.lifecapsule.errors.ForbiddenException;
 import com.example.lifecapsule.errors.NotFoundException;
 import com.example.lifecapsule.repository.FamilyAccessRepository;
+import com.example.lifecapsule.repository.IdCount;
 import com.example.lifecapsule.repository.UserRepository;
 import com.example.lifecapsule.service.dto.AdminResetPasswordDto;
 import com.example.lifecapsule.service.dto.AdminUserSummaryDto;
@@ -32,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class UserService {
@@ -62,7 +64,7 @@ public class UserService {
         String username = input.getUsername().trim();
         if (!username.equalsIgnoreCase(currentUser.getUserName())
                 && userRepository.existsByUserNameIgnoreCase(username)) {
-            throw new IllegalArgumentException("Bu foydalanuvchi nomi band");
+            throw new ConflictException("Bu foydalanuvchi nomi band");
         }
 
         currentUser.setUserName(username);
@@ -77,12 +79,6 @@ public class UserService {
         String oldPassword = input.getOldPassword();
         String newPassword = input.getNewPassword();
 
-        if (oldPassword == null || oldPassword.isBlank()) {
-            throw new IllegalArgumentException("Eski parol kiritilishi shart");
-        }
-        if (newPassword == null || newPassword.isBlank() || newPassword.length() < 6) {
-            throw new IllegalArgumentException("Yangi parol kamida 6 ta belgidan iborat bo'lishi kerak");
-        }
         if (!passwordEncoder.matches(oldPassword, currentUser.getPassword())) {
             throw new BadCredentialsException("Eski parol noto'g'ri");
         }
@@ -100,9 +96,7 @@ public class UserService {
      */
     @Transactional
     public void adminResetPassword(Users currentUser, String username, AdminResetPasswordDto input) {
-        if (currentUser == null || currentUser.getRole() != Role.ADMIN) {
-            throw new ForbiddenException("Bu amalni faqat administrator bajara oladi");
-        }
+        requireAdmin(currentUser);
 
         Users target = userRepository.findByUserNameIgnoreCase(username)
                 .orElseThrow(() -> new NotFoundException("Bu nomdagi foydalanuvchi topilmadi"));
@@ -137,11 +131,14 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public PageResponse<AdminUserSummaryDto> getAllUsersForAdmin(Users currentUser, PageFilter filter) {
-        if (currentUser == null || currentUser.getRole() != Role.ADMIN) {
-            throw new ForbiddenException("Bu amalni faqat administrator bajara oladi");
-        }
+        requireAdmin(currentUser);
         Pageable pageable = filter.toPageable("createdAt", ADMIN_ALLOWED_SORTS);
-        Page<AdminUserSummaryDto> result = userRepository.findAll(pageable).map(user -> {
+        Page<Users> users = userRepository.findAll(pageable);
+        Map<Long, Long> familyCounts = familyAccessRepository
+                .countByUserIds(users.map(Users::getId).toList(), AccessStatus.ACTIVE)
+                .stream()
+                .collect(Collectors.toMap(IdCount::getId, IdCount::getTotal));
+        Page<AdminUserSummaryDto> result = users.map(user -> {
             AdminUserSummaryDto dto = new AdminUserSummaryDto();
             dto.setId(user.getId());
             dto.setUsername(user.getUserName());
@@ -150,11 +147,17 @@ public class UserService {
             dto.setLastName(user.getLastName());
             dto.setRole(user.getRole());
             dto.setStatus(user.getStatus());
-            dto.setFamilyCount(familyAccessRepository.countByUserIdAndStatus(user.getId(), AccessStatus.ACTIVE));
+            dto.setFamilyCount(familyCounts.getOrDefault(user.getId(), 0L));
             dto.setCreatedAt(user.getCreatedAt());
             return dto;
         });
         return new PageResponse<>(result);
+    }
+
+    private void requireAdmin(Users currentUser) {
+        if (!FamilyAuthorization.isAdmin(currentUser)) {
+            throw new ForbiddenException("Bu amalni faqat administrator bajara oladi");
+        }
     }
 
     @Transactional
