@@ -139,8 +139,8 @@ public class FamilyService {
         String coverPath = family.getCoverStoredFileName();
         relationshipRepository.deleteAllByFamilyId(familyId);
         mediaRepository.clearTagsForFamily(familyId);
-        personRepository.deleteAllByFamilyId(familyId);
         mediaRepository.deleteAllByFamilyId(familyId);
+        personRepository.deleteAllByFamilyId(familyId);
         familyAccessRepository.deleteAllByFamilyId(familyId);
         familyRepository.delete(family);
         media.forEach(item -> storageService.delete(item.getStoredFileName()));
