@@ -148,7 +148,8 @@ class PersonServicePermissionTest {
         assertThat(result.getBirthPlace()).isNull();
         assertThat(result.getOccupation()).isNull();
         assertThat(result.getLinkedUserId()).isNull();
-        assertThat(result.getBiography()).contains("yopiq");
+        assertThat(result.getBiography()).isNull();
+        assertThat(result.isRestricted()).isTrue();
     }
 
     @Test
@@ -172,23 +173,77 @@ class PersonServicePermissionTest {
     }
 
     @Test
-    void editorGetsFemaleProfileWithoutMasking() {
-        Users editor = user(2L);
+    void ownersAndEditorsWhoAreNotHerMahramGetTheMaskedProfileToo() {
+        Users owner = user(2L);
         Family family = family(10L);
         Person person = person(family, 30L, Gender.FEMALE);
         PersonDto dto = detailedDto(Gender.FEMALE);
 
         when(familyAccessRepository.findByFamilyIdAndUserId(10L, 2L))
-                .thenReturn(Optional.of(access(family, editor, FamilyAccessRole.EDITOR)));
+                .thenReturn(Optional.of(access(family, owner, FamilyAccessRole.OWNER)));
         when(personRepository.findByIdAndFamilyId(30L, 10L)).thenReturn(Optional.of(person));
         when(personMapper.toDto(person)).thenReturn(dto);
 
-        PersonDto result = personService.getPerson(editor, 10L, 30L);
+        PersonDto result = personService.getPerson(owner, 10L, 30L);
 
-        assertThat(result.getBirthDate()).isEqualTo(LocalDate.of(2003, 8, 9));
-        assertThat(result.getBirthPlace()).isEqualTo("Toshkent");
-        assertThat(result.getOccupation()).isEqualTo("Dizayner");
-        assertThat(result.getLinkedUserId()).isEqualTo(77L);
+        assertThat(result.isRestricted()).isTrue();
+        assertThat(result.getBirthDate()).isNull();
+        assertThat(result.getFirstName()).isEqualTo("Malika");
+    }
+
+    @Test
+    void youngGirlsAndWomenWhoOptedOutAreNotMasked() {
+        Users viewer = user(3L);
+        Family family = family(10L);
+        Person girl = person(family, 30L, Gender.FEMALE);
+        girl.setBirthDate(LocalDate.now().minusYears(5));
+        Person optedOut = person(family, 31L, Gender.FEMALE);
+        optedOut.setMahramOnly(false);
+        when(familyAccessRepository.findByFamilyIdAndUserId(10L, 3L))
+                .thenReturn(Optional.of(access(family, viewer, FamilyAccessRole.VIEWER)));
+        when(personRepository.findAllByFamilyIdOrderByFirstNameAsc(10L)).thenReturn(List.of(girl, optedOut));
+
+        assertThat(personService.maskedPersonIds(viewer, 10L)).isEmpty();
+    }
+
+    @Test
+    void nonMahramEditorCanRenameButNotOverwriteHiddenDetails() {
+        Users editor = user(2L);
+        Family family = family(10L);
+        Person malika = person(family, 30L, Gender.FEMALE);
+        malika.setFirstName("Malika");
+        malika.setBirthPlace("Toshkent");
+        malika.setBiography("Shaxsiy");
+        malika.setMahramOnly(true);
+        when(familyAccessRepository.findByFamilyIdAndUserId(10L, 2L))
+                .thenReturn(Optional.of(access(family, editor, FamilyAccessRole.OWNER)));
+        when(personRepository.findByIdAndFamilyId(30L, 10L)).thenReturn(Optional.of(malika));
+        when(personRepository.save(malika)).thenReturn(malika);
+        when(personMapper.toDto(malika)).thenReturn(detailedDto(Gender.FEMALE));
+        com.example.lifecapsule.service.dto.PersonUpdateDto update = new com.example.lifecapsule.service.dto.PersonUpdateDto();
+        update.setFirstName("Malika opa");
+        update.setGender(Gender.FEMALE);
+        update.setMahramOnly(false);
+
+        personService.updatePerson(editor, 10L, 30L, update);
+
+        assertThat(malika.getFirstName()).isEqualTo("Malika opa");
+        assertThat(malika.getBirthPlace()).isEqualTo("Toshkent");
+        assertThat(malika.getBiography()).isEqualTo("Shaxsiy");
+        assertThat(malika.getMahramOnly()).isTrue();
+    }
+
+    @Test
+    void nonMahramCannotChangeHerAvatar() {
+        Users editor = user(2L);
+        Family family = family(10L);
+        Person malika = person(family, 30L, Gender.FEMALE);
+        when(familyAccessRepository.findByFamilyIdAndUserId(10L, 2L))
+                .thenReturn(Optional.of(access(family, editor, FamilyAccessRole.EDITOR)));
+        when(personRepository.findByIdAndFamilyId(30L, 10L)).thenReturn(Optional.of(malika));
+
+        assertThatThrownBy(() -> personService.deleteAvatar(editor, 10L, 30L)).isInstanceOf(ForbiddenException.class);
+        verify(personRepository, never()).save(any());
     }
 
     @Test
@@ -233,19 +288,22 @@ class PersonServicePermissionTest {
                 relationship(family, anvar, malika, RelationshipType.PARENT),
                 relationship(family, anvar, kamol, RelationshipType.PARENT)
         ));
-        when(personRepository.findIdsByFamilyIdAndGender(10L, Gender.FEMALE)).thenReturn(List.of(30L, 50L));
+        Person stranger = person(family, 50L, Gender.FEMALE);
+        when(personRepository.findAllByFamilyIdOrderByFirstNameAsc(10L)).thenReturn(List.of(anvar, malika, kamol, stranger));
 
         assertThat(personService.maskedPersonIds(viewer, 10L)).containsExactly(50L);
     }
 
     @Test
-    void editorsSeeEveryProfile() {
+    void aWomanSeesEveryProfile() {
         Users editor = user(2L);
+        Family family = family(10L);
         when(familyAccessRepository.findByFamilyIdAndUserId(10L, 2L))
-                .thenReturn(Optional.of(access(family(10L), editor, FamilyAccessRole.EDITOR)));
+                .thenReturn(Optional.of(access(family, editor, FamilyAccessRole.EDITOR)));
+        when(personRepository.findByFamilyIdAndLinkedUserId(10L, 2L)).thenReturn(Optional.of(person(family, 60L, Gender.FEMALE)));
 
         assertThat(personService.maskedPersonIds(editor, 10L)).isEmpty();
-        verify(personRepository, never()).findIdsByFamilyIdAndGender(any(), any());
+        verify(personRepository, never()).findAllByFamilyIdOrderByFirstNameAsc(any());
     }
 
     @Test

@@ -42,4 +42,7 @@ public class PersonUpdateDto {
     private String biography;
 
     private Long linkedUserId;
+
+    /** Only the woman herself or the family owner - and only while they can see her profile - may change it. */
+    private Boolean mahramOnly;
 }

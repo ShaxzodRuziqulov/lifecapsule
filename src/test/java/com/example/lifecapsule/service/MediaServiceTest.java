@@ -129,6 +129,19 @@ class MediaServiceTest {
         assertThat(result).extracting(MediaDto::getId).containsExactly(1L);
     }
 
+    @Test void groupPhotoShowingAMaskedWomanIsHiddenToo() {
+        Media groupPhoto = media(2L, 40L);
+        groupPhoto.getTaggedPersons().add(person(50L));
+        stubToDto();
+        when(personRepository.findByIdAndFamilyId(30L, 10L)).thenReturn(Optional.of(person(30L)));
+        when(personService.maskedPersonIds(editor, 10L)).thenReturn(Set.of(50L));
+        when(mediaRepository.findAllVisibleToPerson(10L, 30L)).thenReturn(List.of(media, groupPhoto));
+        when(mediaRepository.findAllByFamilyId(10L)).thenReturn(List.of(media, groupPhoto));
+
+        assertThat(mediaService.list(editor, 10L, 30L)).extracting(MediaDto::getId).containsExactly(1L);
+        assertThat(mediaService.listForFamily(editor, 10L)).extracting(MediaDto::getId).containsExactly(1L);
+    }
+
     @Test void galleryOfAMaskedPersonIsEmpty() {
         when(personRepository.findByIdAndFamilyId(50L, 10L)).thenReturn(Optional.of(person(50L)));
         when(personService.maskedPersonIds(editor, 10L)).thenReturn(Set.of(50L));

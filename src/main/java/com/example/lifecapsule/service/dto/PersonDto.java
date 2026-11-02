@@ -25,6 +25,10 @@ public class PersonDto {
     private String biography;
     private String avatarUrl;
     private Long linkedUserId;
+    /** The stored choice: true/false, or null for the default (mahrams only from age 9). */
+    private Boolean mahramOnly;
+    /** True when this woman's details are hidden from the current viewer, who is not her mahram. */
+    private boolean restricted;
     private LocalDateTime createdAt;
     private LocalDateTime updateAt;
 }

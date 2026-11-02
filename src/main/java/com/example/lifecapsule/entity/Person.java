@@ -86,4 +86,7 @@ public class Person extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "linked_user_id")
     private Users linkedUser;
+
+    /** Show this woman's details to mahrams only; null means the default (from age 9). */
+    private Boolean mahramOnly;
 }

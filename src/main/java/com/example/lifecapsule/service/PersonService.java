@@ -3,6 +3,7 @@ package com.example.lifecapsule.service;
 import com.example.lifecapsule.entity.*;
 import com.example.lifecapsule.entity.enumirated.*;
 import com.example.lifecapsule.errors.ConflictException;
+import com.example.lifecapsule.errors.ForbiddenException;
 import com.example.lifecapsule.errors.NotFoundException;
 import com.example.lifecapsule.repository.*;
 import com.example.lifecapsule.service.dto.*;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.util.*;
 
 @Service
@@ -56,7 +58,7 @@ public class PersonService {
             person.setLinkedUser(linkedUser);
         }
 
-        return applyAvatarUrl(personMapper.toDto(personRepository.save(person)), person);
+        return toDto(personRepository.save(person), createPrivacyContext(currentUser, familyId));
     }
 
     @Transactional
@@ -65,8 +67,10 @@ public class PersonService {
             throw new IllegalArgumentException("personId cannot be null");
         }
 
-        authorization.editable(currentUser, familyId);
+        FamilyAccess access = authorization.editable(currentUser, familyId);
         Person person = getPersonEntity(familyId, personId);
+        PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, familyId);
+        boolean hidden = privacyContext.masks(person);
 
         if (personDto.getBirthDate() != null
                 && personDto.getDeathDate() != null
@@ -79,8 +83,16 @@ public class PersonService {
         }
         person.setFirstName(personDto.getFirstName().trim());
         person.setLastName(trimToNull(personDto.getLastName()));
-        person.setMaidenName(trimToNull(personDto.getMaidenName()));
         person.setGender(personDto.getGender());
+        // Someone who is not her mahram only gets her name back, so they may not touch the rest.
+        if (hidden) {
+            return toDto(personRepository.save(person), privacyContext);
+        }
+        boolean self = person.getLinkedUser() != null && person.getLinkedUser().getId().equals(currentUser.getId());
+        if (self || access.getAccessRole() == FamilyAccessRole.OWNER) {
+            person.setMahramOnly(personDto.getMahramOnly());
+        }
+        person.setMaidenName(trimToNull(personDto.getMaidenName()));
         person.setBirthDate(personDto.getBirthDate());
         person.setDeathDate(personDto.getDeathDate());
         person.setBirthPlace(trimToNull(personDto.getBirthPlace()));
@@ -94,7 +106,7 @@ public class PersonService {
         }
         person.setLinkedUser(linkedUser);
 
-        return applyAvatarUrl(personMapper.toDto(personRepository.save(person)), person);
+        return toDto(personRepository.save(person), createPrivacyContext(currentUser, familyId));
     }
 
     @Transactional(readOnly = true)
@@ -103,12 +115,15 @@ public class PersonService {
             Long familyId,
             PageFilter filter
     ) {
-        FamilyAccess access = authorization.readable(currentUser, familyId);
-        PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, access);
+        authorization.readable(currentUser, familyId);
+        PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, familyId);
         Pageable pageable = filter.toPageable(DEFAULT_SORT, ALLOWED_SORTS);
 
         String search = filter.normalizedQuery();
-        var page = searchByFamilyId(familyId, search, pageable, access);
+        // Searching hidden fields would reveal what they contain, so it stays on names unless nothing is hidden.
+        var page = privacyContext.seesAll()
+                ? personRepository.searchByFamilyId(familyId, search, pageable)
+                : personRepository.searchBasicByFamilyId(familyId, search, pageable);
 
         Page<PersonDto> result = page.map(person -> toDto(person, privacyContext));
         return new PageResponse<>(result);
@@ -116,33 +131,33 @@ public class PersonService {
 
     @Transactional(readOnly = true)
     public PersonDto getPerson(Users currentUser, Long familyId, Long personId) {
-        FamilyAccess access = authorization.readable(currentUser, familyId);
-        PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, access);
-        return toDto(getPersonEntity(familyId, personId), privacyContext);
+        authorization.readable(currentUser, familyId);
+        return toDto(getPersonEntity(familyId, personId), createPrivacyContext(currentUser, familyId));
     }
 
     /**
-     * Whether currentUser may see this person's private details (and by extension, their media) -
-     * false for the same "mahram" masking applied to sensitive female profiles for VIEWER access.
+     * Whether currentUser may see this person's private details (and by extension, their media):
+     * false for a woman whose details are for mahrams only when currentUser is not her mahram.
+     * This applies to every role - owners, editors and admins included.
      */
     @Transactional(readOnly = true)
     public boolean canViewFullProfile(Users currentUser, Long familyId, Long personId) {
-        FamilyAccess access = authorization.readable(currentUser, familyId);
-        Person person = getPersonEntity(familyId, personId);
-        PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, access);
-        return !shouldMaskSensitiveProfile(person, privacyContext);
+        authorization.readable(currentUser, familyId);
+        return !createPrivacyContext(currentUser, familyId).masks(getPersonEntity(familyId, personId));
     }
 
     /** Ids of everyone in the family whose profile (and media) is masked for currentUser. */
     @Transactional(readOnly = true)
     public Set<Long> maskedPersonIds(Users currentUser, Long familyId) {
-        FamilyAccess access = authorization.readable(currentUser, familyId);
-        if (access.getAccessRole() != FamilyAccessRole.VIEWER) {
+        authorization.readable(currentUser, familyId);
+        PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, familyId);
+        if (privacyContext.seesAll()) {
             return Set.of();
         }
-        PersonPrivacyContext privacyContext = createPrivacyContext(currentUser, access);
-        Set<Long> masked = new HashSet<>(personRepository.findIdsByFamilyIdAndGender(familyId, Gender.FEMALE));
-        masked.removeAll(privacyContext.visibleSensitivePersonIds());
+        Set<Long> masked = new HashSet<>();
+        personRepository.findAllByFamilyIdOrderByFirstNameAsc(familyId).forEach(person -> {
+            if (privacyContext.masks(person)) masked.add(person.getId());
+        });
         return masked;
     }
 
@@ -164,6 +179,7 @@ public class PersonService {
     public PersonDto uploadAvatar(Users currentUser, Long familyId, Long personId, MultipartFile file) {
         authorization.editable(currentUser, familyId);
         Person person = getPersonEntity(familyId, personId);
+        requireFullProfile(currentUser, familyId, person);
         if (file == null || file.isEmpty()) throw new IllegalArgumentException("Rasm tanlanmagan");
         if (file.getSize() > MAX_AVATAR_FILE_SIZE) throw new IllegalArgumentException("Profil rasmi 10 MB dan katta bo'lmasligi kerak");
         if (!ALLOWED_AVATAR_TYPES.contains(file.getContentType())) throw new IllegalArgumentException("Profil uchun faqat rasm fayllari qabul qilinadi");
@@ -189,6 +205,7 @@ public class PersonService {
     public void deleteAvatar(Users currentUser, Long familyId, Long personId) {
         authorization.editable(currentUser, familyId);
         Person person = getPersonEntity(familyId, personId);
+        requireFullProfile(currentUser, familyId, person);
         String path = person.getAvatarStoredFileName();
         if (path == null) return;
         person.setAvatarStoredFileName(null);
@@ -223,97 +240,39 @@ public class PersonService {
 
     private PersonDto toDto(Person person, PersonPrivacyContext privacyContext) {
         PersonDto dto = applyAvatarUrl(personMapper.toDto(person), person);
-        if (shouldMaskSensitiveProfile(person, privacyContext)) {
+        if (privacyContext.masks(person)) {
             maskSensitiveProfile(dto);
         }
         return dto;
     }
 
-    private Page<Person> searchByFamilyId(
-            Long familyId,
-            String search,
-            Pageable pageable,
-            FamilyAccess access
-    ) {
-        if (access.getAccessRole() == FamilyAccessRole.VIEWER) {
-            return personRepository.searchBasicByFamilyId(familyId, search, pageable);
+    /** Uploading or removing her photos is for those who may see them. */
+    void requireFullProfile(Users currentUser, Long familyId, Person person) {
+        if (createPrivacyContext(currentUser, familyId).masks(person)) {
+            throw new ForbiddenException("Bu profil faqat mahramlariga ochiq");
         }
-        return personRepository.searchByFamilyId(familyId, search, pageable);
     }
 
-    private PersonPrivacyContext createPrivacyContext(Users currentUser, FamilyAccess access) {
-        if (access.getAccessRole() != FamilyAccessRole.VIEWER) {
-            return new PersonPrivacyContext(access, Set.of());
+    /**
+     * What currentUser may see in this family, from the person they are linked to in the tree:
+     * a woman sees every profile; a man sees the women who are his mahram. Someone not placed in the
+     * tree (or of unknown gender) sees no restricted profile, since their kinship cannot be told.
+     */
+    private PersonPrivacyContext createPrivacyContext(Users currentUser, Long familyId) {
+        Optional<Person> self = personRepository.findByFamilyIdAndLinkedUserId(familyId, currentUser.getId());
+        LocalDate today = LocalDate.now();
+        if (self.isPresent() && self.get().getGender() == Gender.FEMALE) {
+            return new PersonPrivacyContext(true, Set.of(), today);
         }
-
-        Long familyId = access.getFamily().getId();
-        Set<Long> visibleSensitivePersonIds = personRepository
-                .findByFamilyIdAndLinkedUserId(familyId, currentUser.getId())
-                .map(linkedPerson -> findMahramPersonIds(familyId, linkedPerson.getId()))
-                .orElse(Set.of());
-
-        return new PersonPrivacyContext(access, visibleSensitivePersonIds);
-    }
-
-    private Set<Long> findMahramPersonIds(Long familyId, Long linkedPersonId) {
-        List<Relationship> relationships = relationshipRepository.findAllByFamilyIdOrderByCreatedAtAsc(familyId);
-        Map<Long, Set<Long>> parentsByChild = new HashMap<>();
-        Map<Long, Set<Long>> childrenByParent = new HashMap<>();
-        Set<Long> visiblePersonIds = new HashSet<>();
-        visiblePersonIds.add(linkedPersonId);
-
-        for (Relationship relationship : relationships) {
-            Long fromPersonId = relationship.getFromPerson().getId();
-            Long toPersonId = relationship.getToPerson().getId();
-
-            if (relationship.getType() == RelationshipType.PARTNER) {
-                if (fromPersonId.equals(linkedPersonId)) {
-                    visiblePersonIds.add(toPersonId);
-                }
-                if (toPersonId.equals(linkedPersonId)) {
-                    visiblePersonIds.add(fromPersonId);
-                }
-                continue;
+        Set<Long> visible = new HashSet<>();
+        self.ifPresent(person -> {
+            visible.add(person.getId());
+            if (person.getGender() == Gender.MALE) {
+                visible.addAll(new MahramRules(relationshipRepository.findAllByFamilyIdOrderByCreatedAtAsc(familyId))
+                        .mahramsOfMan(person.getId()));
             }
-
-            if (relationship.getType() == RelationshipType.PARENT
-                    || relationship.getType() == RelationshipType.ADOPTIVE_PARENT) {
-                parentsByChild.computeIfAbsent(toPersonId, ignored -> new HashSet<>()).add(fromPersonId);
-                childrenByParent.computeIfAbsent(fromPersonId, ignored -> new HashSet<>()).add(toPersonId);
-            }
-        }
-
-        visiblePersonIds.addAll(collectConnected(linkedPersonId, parentsByChild));
-        visiblePersonIds.addAll(collectConnected(linkedPersonId, childrenByParent));
-
-        Set<Long> parentIds = parentsByChild.getOrDefault(linkedPersonId, Set.of());
-        for (Long parentId : parentIds) {
-            visiblePersonIds.addAll(childrenByParent.getOrDefault(parentId, Set.of()));
-        }
-
-        return visiblePersonIds;
-    }
-
-    private Set<Long> collectConnected(Long startPersonId, Map<Long, Set<Long>> graph) {
-        Set<Long> visited = new HashSet<>();
-        Set<Long> next = new HashSet<>(graph.getOrDefault(startPersonId, Set.of()));
-
-        while (!next.isEmpty()) {
-            Long personId = next.iterator().next();
-            next.remove(personId);
-            if (visited.add(personId)) {
-                next.addAll(graph.getOrDefault(personId, Set.of()));
-            }
-        }
-
-        return visited;
-    }
-
-    private boolean shouldMaskSensitiveProfile(Person person, PersonPrivacyContext privacyContext) {
-        if (privacyContext.access().getAccessRole() != FamilyAccessRole.VIEWER || person.getGender() != Gender.FEMALE) {
-            return false;
-        }
-        return !privacyContext.visibleSensitivePersonIds().contains(person.getId());
+        });
+        return new PersonPrivacyContext(false, visible, today);
     }
 
     private void maskSensitiveProfile(PersonDto dto) {
@@ -322,9 +281,11 @@ public class PersonService {
         dto.setDeathDate(null);
         dto.setBirthPlace(null);
         dto.setOccupation(null);
-        dto.setBiography("Ko'ruvchi rolida bu profilning batafsil ma'lumotlari yopiq.");
+        dto.setBiography(null);
         dto.setAvatarUrl(null);
         dto.setLinkedUserId(null);
+        dto.setMahramOnly(null);
+        dto.setRestricted(true);
     }
 
     private String trimToNull(String value) {
@@ -345,7 +306,10 @@ public class PersonService {
 
     public record AvatarFile(org.springframework.core.io.Resource resource, String contentType, String fileName) { }
 
-    private record PersonPrivacyContext(FamilyAccess access, Set<Long> visibleSensitivePersonIds) {
+    private record PersonPrivacyContext(boolean seesAll, Set<Long> visiblePersonIds, LocalDate today) {
+        boolean masks(Person person) {
+            return !seesAll && MahramRules.isRestricted(person, today) && !visiblePersonIds.contains(person.getId());
+        }
     }
 
 }

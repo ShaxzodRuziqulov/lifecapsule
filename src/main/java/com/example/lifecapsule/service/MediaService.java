@@ -40,6 +40,7 @@ public class MediaService {
     public MediaDto upload(Users currentUser, Long familyId, Long personId, String caption, MultipartFile file) {
         FamilyAccess access = authorization.editable(currentUser, familyId);
         Person person = getPersonEntity(familyId, personId);
+        personService.requireFullProfile(currentUser, familyId, person);
 
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Fayl tanlanmagan");
@@ -78,21 +79,21 @@ public class MediaService {
         // so each item is checked against its owner's privacy, not just this person's.
         return mediaRepository.findAllVisibleToPerson(familyId, personId)
                 .stream()
-                .filter(media -> !masked.contains(media.getPerson().getId()))
+                .filter(media -> !hidden(media, masked))
                 .map(this::toDto)
                 .toList();
     }
 
     /**
      * Every media item in the family the current user is allowed to see - i.e. everything
-     * except items owned by a person whose profile is masked for this viewer (mahram privacy).
+     * except items owned by, or showing, a woman whose profile is masked for this viewer (mahram privacy).
      */
     @Transactional(readOnly = true)
     public List<MediaDto> listForFamily(Users currentUser, Long familyId) {
         authorization.readable(currentUser, familyId);
         Set<Long> masked = personService.maskedPersonIds(currentUser, familyId);
         return mediaRepository.findAllByFamilyId(familyId).stream()
-                .filter(media -> !masked.contains(media.getPerson().getId()))
+                .filter(media -> !hidden(media, masked))
                 .sorted(Comparator.comparing(Media::getCreatedAt).reversed())
                 .map(this::toDto)
                 .toList();
@@ -103,6 +104,9 @@ public class MediaService {
         authorization.editable(currentUser, familyId);
         Media media = mediaRepository.findByIdAndPersonIdAndFamilyId(mediaId, personId, familyId)
                 .orElseThrow(() -> new NotFoundException("Fayl topilmadi"));
+        if (hidden(media, personService.maskedPersonIds(currentUser, familyId))) {
+            throw new NotFoundException("Fayl topilmadi");
+        }
 
         media.setCaption(trimToNull(input.getCaption()));
         media.setTaggedPersons(resolveTaggedPersons(familyId, personId, input.getTaggedPersonIds()));
@@ -133,6 +137,9 @@ public class MediaService {
         authorization.editable(currentUser, familyId);
         Media media = mediaRepository.findByIdAndPersonIdAndFamilyId(mediaId, personId, familyId)
                 .orElseThrow(() -> new NotFoundException("Fayl topilmadi"));
+        if (hidden(media, personService.maskedPersonIds(currentUser, familyId))) {
+            throw new NotFoundException("Fayl topilmadi");
+        }
 
         mediaRepository.delete(media);
         storageService.delete(media.getStoredFileName());    }
@@ -140,14 +147,21 @@ public class MediaService {
     @Transactional(readOnly = true)
     public MediaFile loadFile(Users currentUser, Long familyId, Long personId, Long mediaId) {
         authorization.readable(currentUser, familyId);
-        if (!personService.canViewFullProfile(currentUser, familyId, personId)) {
-            throw new NotFoundException("Fayl topilmadi");
-        }
         Media media = mediaRepository.findByIdAndPersonIdAndFamilyId(mediaId, personId, familyId)
                 .orElseThrow(() -> new NotFoundException("Fayl topilmadi"));
+        if (hidden(media, personService.maskedPersonIds(currentUser, familyId))) {
+            throw new NotFoundException("Fayl topilmadi");
+        }
 
         Resource resource = storageService.loadAsResource(media.getStoredFileName());
         return new MediaFile(resource, media.getContentType(), media.getOriginalFileName());
+    }
+
+    /** A photo or video is hidden when its owner, or anyone tagged in it, is masked for the viewer. */
+    private static boolean hidden(Media media, Set<Long> masked) {
+        if (masked.isEmpty()) return false;
+        return masked.contains(media.getPerson().getId())
+                || media.getTaggedPersons().stream().anyMatch(person -> masked.contains(person.getId()));
     }
 
     private MediaDto toDto(Media media) {
