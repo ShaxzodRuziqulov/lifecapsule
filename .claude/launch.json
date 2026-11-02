@@ -4,13 +4,13 @@
     {
       "name": "backend",
       "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "cd /d D:\\12\\lifecapsule && .\\mvnw.cmd spring-boot:run"],
+      "runtimeArgs": ["/c", "cd /d D:\\projects\\lifecapsule && .\\mvnw.cmd spring-boot:run"],
       "port": 8085
     },
     {
       "name": "frontend",
       "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "cd /d D:/12/lifecapsule-front-system && npm run dev"],
+      "runtimeArgs": ["/c", "cd /d D:/projects/lifecapsule-front-system && npm run dev"],
       "port": 5173
     }
   ]
