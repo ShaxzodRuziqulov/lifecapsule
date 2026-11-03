@@ -20,6 +20,9 @@ security:
       expiration-time: 3600000
       refresh-expiration-time: 2592000000
 app:
+  privacy:
+    # Mahram masking of women's profiles; off until the family data is filled in.
+    mahram-enabled: ${APP_MAHRAM_PRIVACY_ENABLED:false}
   storage:
     root: ${APP_STORAGE_ROOT:./uploads}
   admin:

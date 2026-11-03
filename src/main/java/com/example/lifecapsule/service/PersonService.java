@@ -9,6 +9,7 @@ import com.example.lifecapsule.repository.*;
 import com.example.lifecapsule.service.dto.*;
 import com.example.lifecapsule.service.mapper.PersonMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,10 @@ public class PersonService {
     private final PersonMapper personMapper;
     private final MediaRepository mediaRepository;
     private final StorageService storageService;
+
+    /** Off while the tree is still being filled in: everyone then sees and edits every profile. */
+    @Value("${app.privacy.mahram-enabled:true}")
+    private boolean mahramPrivacyEnabled = true;
 
     @Transactional
     public PersonDto createPerson(Users currentUser, Long familyId, CreatePersonDto input) {
@@ -259,8 +264,11 @@ public class PersonService {
      * tree (or of unknown gender) sees no restricted profile, since their kinship cannot be told.
      */
     private PersonPrivacyContext createPrivacyContext(Users currentUser, Long familyId) {
-        Optional<Person> self = personRepository.findByFamilyIdAndLinkedUserId(familyId, currentUser.getId());
         LocalDate today = LocalDate.now();
+        if (!mahramPrivacyEnabled) {
+            return new PersonPrivacyContext(true, Set.of(), today);
+        }
+        Optional<Person> self = personRepository.findByFamilyIdAndLinkedUserId(familyId, currentUser.getId());
         if (self.isPresent() && self.get().getGender() == Gender.FEMALE) {
             return new PersonPrivacyContext(true, Set.of(), today);
         }
