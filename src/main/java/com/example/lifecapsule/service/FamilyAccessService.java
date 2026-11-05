@@ -64,6 +64,7 @@ public class FamilyAccessService {
                         AccessStatus.PENDING
                 )
                 .stream()
+                .filter(access -> !access.getFamily().isDeleted())
                 .map(familyAccessMapper::toDto)
                 .toList();
     }
@@ -166,6 +167,9 @@ public class FamilyAccessService {
 
         if (!access.getUser().getId().equals(currentUser.getId())) {
             throw new ForbiddenException("Bu taklif sizga tegishli emas");
+        }
+        if (access.getFamily().isDeleted()) {
+            throw new NotFoundException("Taklif topilmadi");
         }
         if (access.getStatus() != AccessStatus.PENDING) {
             throw new ConflictException("Taklif faol holatda emas");

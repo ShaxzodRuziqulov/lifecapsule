@@ -18,6 +18,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(
         name = "family",
@@ -57,5 +59,16 @@ public class Family extends BaseEntity {
 
     @Column(length = 150)
     private String coverContentType;
+
+    /** Deleting a family only stamps these; an admin can restore it, and nothing is removed. */
+    private LocalDateTime deletedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "deleted_by")
+    private Users deletedBy;
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
 
 }

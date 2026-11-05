@@ -29,8 +29,6 @@ public interface MediaRepository extends JpaRepository<Media, Long> {
 
     void deleteAllByPersonId(Long personId);
 
-    void deleteAllByFamilyId(Long familyId);
-
     /**
      * Clears media_tags rows that would otherwise dangle (FK violation) once this person - and
      * the media they own - are deleted: rows where they're tagged in someone else's media, and
@@ -44,16 +42,4 @@ public interface MediaRepository extends JpaRepository<Media, Long> {
                or media_id in (select id from media where person_id = :personId)
             """, nativeQuery = true)
     void clearTagsForPerson(@Param("personId") Long personId);
-
-    /**
-     * Same as clearTagsForPerson, scoped to every person/media in a family. Must run before
-     * personRepository.deleteAllByFamilyId and mediaRepository.deleteAllByFamilyId.
-     */
-    @Modifying
-    @Query(value = """
-            delete from media_tags
-            where person_id in (select id from persons where family_id = :familyId)
-               or media_id in (select id from media where family_id = :familyId)
-            """, nativeQuery = true)
-    void clearTagsForFamily(@Param("familyId") Long familyId);
 }

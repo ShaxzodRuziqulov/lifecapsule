@@ -33,7 +33,7 @@ public class FamilyAuthorization {
         }
         FamilyAccess access = familyAccessRepository.findByFamilyIdAndUserId(familyId, user.getId())
                 .orElseThrow(FamilyAuthorization::notFound);
-        if (access.getStatus() != AccessStatus.ACTIVE) {
+        if (access.getStatus() != AccessStatus.ACTIVE || access.getFamily().isDeleted()) {
             throw notFound();
         }
         return access;
@@ -58,6 +58,7 @@ public class FamilyAuthorization {
     private FamilyAccess adminAccess(Users admin, Long familyId) {
         FamilyAccess access = new FamilyAccess();
         access.setFamily(familyRepository.findById(familyId)
+                .filter(family -> !family.isDeleted())
                 .orElseThrow(() -> new NotFoundException("Oila topilmadi")));
         access.setUser(admin);
         access.setAccessRole(FamilyAccessRole.OWNER);

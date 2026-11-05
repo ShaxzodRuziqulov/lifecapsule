@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -43,6 +44,15 @@ public class AdminResource {
             @Valid @ModelAttribute PageFilter filter
     ) {
         return ResponseEntity.ok().body(userService.getAllUsersForAdmin(currentUser, filter));
+    }
+
+    @PostMapping("/families/{familyId}/restore")
+    public ResponseEntity<Void> restoreFamily(
+            @AuthenticationPrincipal Users currentUser,
+            @PathVariable Long familyId
+    ) {
+        familyService.restoreFamily(currentUser, familyId);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/families")

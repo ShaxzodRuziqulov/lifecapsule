@@ -1,5 +1,6 @@
 package com.example.lifecapsule.service.dto;
 
+import com.example.lifecapsule.entity.enumirated.FamilyStatus;
 import com.example.lifecapsule.entity.enumirated.FamilyVisibility;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,4 +20,7 @@ public class AdminFamilySummaryDto {
     private String ownerEmail;
     private long memberCount;
     private LocalDateTime createdAt;
+    private FamilyStatus status;
+    private LocalDateTime deletedAt;
+    private String deletedByUsername;
 }

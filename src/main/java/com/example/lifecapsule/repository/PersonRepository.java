@@ -60,8 +60,4 @@ public interface PersonRepository extends JpaRepository<Person, Long> {
 
     @Query("select person.id from Person person where person.family.id = :familyId and person.gender = :gender")
     List<Long> findIdsByFamilyIdAndGender(@Param("familyId") Long familyId, @Param("gender") Gender gender);
-
-    @Modifying
-    @Query("delete from Person person where person.family.id = :familyId")
-    void deleteAllByFamilyId(@Param("familyId") Long familyId);
 }

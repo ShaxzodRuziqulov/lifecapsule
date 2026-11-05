@@ -39,10 +39,6 @@ public interface RelationshipRepository extends JpaRepository<Relationship, Long
     Optional<Relationship> findByIdAndFamilyId(Long id, Long familyId);
 
     @Modifying
-    @Query("delete from Relationship relationship where relationship.family.id = :familyId")
-    void deleteAllByFamilyId(@Param("familyId") Long familyId);
-
-    @Modifying
     @Query("""
             delete from Relationship relationship
             where relationship.family.id = :familyId

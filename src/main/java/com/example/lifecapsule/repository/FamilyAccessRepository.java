@@ -29,6 +29,7 @@ public interface FamilyAccessRepository extends JpaRepository<FamilyAccess, Long
             where access.user.id = :userId
               and access.status in (com.example.lifecapsule.entity.enumirated.AccessStatus.ACTIVE, com.example.lifecapsule.entity.enumirated.AccessStatus.REMOVED)
               and access.accessRole <> com.example.lifecapsule.entity.enumirated.FamilyAccessRole.OWNER
+              and family.deletedAt is null
             order by access.updateAt desc
             """)
     List<FamilyAccess> findMyInvitationHistory(@Param("userId") Long userId);
@@ -39,6 +40,7 @@ public interface FamilyAccessRepository extends JpaRepository<FamilyAccess, Long
             join access.family family
             where access.user.id = :userId
               and access.status = :status
+              and family.deletedAt is null
               and (cast(:q as string) is null or (
                     lower(family.name) like lower(concat('%', cast(:q as string), '%'))
                     or lower(coalesce(family.description, '')) like lower(concat('%', cast(:q as string), '%'))
@@ -62,10 +64,8 @@ public interface FamilyAccessRepository extends JpaRepository<FamilyAccess, Long
 
     @Query("""
             select access.user.id as id, count(access) as total from FamilyAccess access
-            where access.user.id in :userIds and access.status = :status
+            where access.user.id in :userIds and access.status = :status and access.family.deletedAt is null
             group by access.user.id
             """)
     List<IdCount> countByUserIds(@Param("userIds") Collection<Long> userIds, @Param("status") AccessStatus status);
-
-    void deleteAllByFamilyId(Long familyId);
 }

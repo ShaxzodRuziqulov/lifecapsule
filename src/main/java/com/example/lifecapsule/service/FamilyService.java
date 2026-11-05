@@ -5,14 +5,13 @@ import com.example.lifecapsule.entity.FamilyAccess;
 import com.example.lifecapsule.entity.Users;
 import com.example.lifecapsule.entity.enumirated.AccessStatus;
 import com.example.lifecapsule.entity.enumirated.FamilyAccessRole;
+import com.example.lifecapsule.entity.enumirated.FamilyStatus;
+import com.example.lifecapsule.errors.ConflictException;
 import com.example.lifecapsule.errors.ForbiddenException;
 import com.example.lifecapsule.errors.NotFoundException;
 import com.example.lifecapsule.repository.FamilyAccessRepository;
 import com.example.lifecapsule.repository.FamilyRepository;
 import com.example.lifecapsule.repository.IdCount;
-import com.example.lifecapsule.repository.MediaRepository;
-import com.example.lifecapsule.repository.PersonRepository;
-import com.example.lifecapsule.repository.RelationshipRepository;
 import com.example.lifecapsule.service.dto.*;
 import com.example.lifecapsule.service.mapper.FamilyMapper;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -49,9 +49,6 @@ public class FamilyService {
     private final FamilyAccessRepository familyAccessRepository;
     private final FamilyAuthorization authorization;
     private final FamilyMapper familyMapper;
-    private final PersonRepository personRepository;
-    private final RelationshipRepository relationshipRepository;
-    private final MediaRepository mediaRepository;
     private final StorageService storageService;
 
     @Transactional
@@ -109,6 +106,9 @@ public class FamilyService {
                     dto.setOwnerEmail(family.getCreatedBy().getEmail());
                     dto.setMemberCount(memberCounts.getOrDefault(family.getId(), 0L));
                     dto.setCreatedAt(family.getCreatedAt());
+                    dto.setStatus(family.isDeleted() ? FamilyStatus.DELETED : FamilyStatus.ACTIVE);
+                    dto.setDeletedAt(family.getDeletedAt());
+                    dto.setDeletedByUsername(family.getDeletedBy() == null ? null : family.getDeletedBy().getUserName());
                     return dto;
                 });
         return new PageResponse<>(result);
@@ -132,19 +132,31 @@ public class FamilyService {
         return toDto(access);
     }
 
+    /**
+     * Marks the family deleted: it disappears for everyone, but its people, links, photos and
+     * memberships stay untouched so an admin can bring it back with restoreFamily.
+     */
     @Transactional
     public void deleteFamily(Users currentUser, Long familyId) {
         Family family = authorization.owner(currentUser, familyId).getFamily();
-        var media = mediaRepository.findAllByFamilyId(familyId);
-        String coverPath = family.getCoverStoredFileName();
-        relationshipRepository.deleteAllByFamilyId(familyId);
-        mediaRepository.clearTagsForFamily(familyId);
-        mediaRepository.deleteAllByFamilyId(familyId);
-        personRepository.deleteAllByFamilyId(familyId);
-        familyAccessRepository.deleteAllByFamilyId(familyId);
-        familyRepository.delete(family);
-        media.forEach(item -> storageService.delete(item.getStoredFileName()));
-        if (coverPath != null) storageService.delete(coverPath);
+        family.setDeletedAt(LocalDateTime.now());
+        family.setDeletedBy(currentUser);
+        familyRepository.save(family);
+    }
+
+    @Transactional
+    public void restoreFamily(Users currentUser, Long familyId) {
+        if (!FamilyAuthorization.isAdmin(currentUser)) {
+            throw new ForbiddenException("Bu amalni faqat administrator bajara oladi");
+        }
+        Family family = familyRepository.findById(familyId)
+                .orElseThrow(() -> new NotFoundException("Oila topilmadi"));
+        if (!family.isDeleted()) {
+            throw new ConflictException("Oila o'chirilmagan");
+        }
+        family.setDeletedAt(null);
+        family.setDeletedBy(null);
+        familyRepository.save(family);
     }
 
     @Transactional
